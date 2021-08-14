@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-struct ParseHtmlError {
+pub struct ParseHtmlError {
     msg : String,
 }
 
@@ -14,25 +14,26 @@ impl ParseHtmlError {
 
 impl std::fmt::Display for ParseHtmlError {
     fn fmt(&self, f : &mut  std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "Error occured parsing HTML '{}'", self.msg);
+        write!(f, "Error occured parsing HTML '{}'", self.msg)?;
         Ok(())
     }
 }
 impl std::fmt::Debug for ParseHtmlError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "Error occured parsing HTML '{}'", self.msg);
+        write!(f, "Error occured parsing HTML '{}'", self.msg)?;
         Ok(())
     }
 }
 
-struct HtmlDocument {
+#[derive(Debug)]
+pub struct HtmlDocument {
     doctype : Option<String>,
-    nodes : Option<Vec<HtmlNode>>,
+    nodes : Option<Vec<HtmlContent>>,
 }
 
 #[derive(Debug, PartialEq)]
-struct HtmlNode {
-    tag : Option<String>,
+pub struct HtmlNode {
+    tag : String,
     contents : Option<Vec<HtmlContent>>,
     class : Option<Vec<String>>,
     id : Option<Vec<String>>,
@@ -40,7 +41,7 @@ struct HtmlNode {
 }
 
 #[derive(Debug, PartialEq)]
-enum HtmlContent {
+pub enum HtmlContent {
     Text(String),
     Node(HtmlNode),
     Comment(String),
@@ -68,16 +69,17 @@ impl FromStr for CSSSelector {
         for word in s.split_ascii_whitespace() {
             if word.starts_with('#') {
                 output.push(CSSSelectorData {class: None, id: Some(word[1..].to_string()), tag : None});
-            }
-            match word.split_once('.') {
-                //TODO: need to some checks for empty class, etc...
-                Some((tag, class)) => {
-                    output.push(CSSSelectorData { class : Some(class.to_string()), id : None, tag : if tag == "" { None } else { Some(tag.to_string()) } });
-                },
-                None => {
-                    //tag only
-                    output.push(CSSSelectorData {class: None, id: None, tag : Some(word.to_string())});
-                },
+            } else {
+                match word.split_once('.') {
+                    //TODO: need to some checks for empty class, etc...
+                    Some((tag, class)) => {
+                        output.push(CSSSelectorData { class : Some(class.to_string()), id : None, tag : if tag == "" { None } else { Some(tag.to_string()) } });
+                    },
+                    None => {
+                        //tag only
+                        output.push(CSSSelectorData {class: None, id: None, tag : Some(word.to_string())});
+                    },
+                }
             }
         }
         if output.len() > 0 {
@@ -88,10 +90,11 @@ impl FromStr for CSSSelector {
 }
 
 #[cfg(test)]
-mod CSSSelectorTests {
+mod css_selector_tests {
     use super::*;
 
-    fn CreateSelectorFromStringTest() -> Result<(), ParseHtmlError> {
+    #[test]
+    fn create_selector_from_string_test() -> Result<(), ParseHtmlError> {
         let selector = CSSSelector::from_str(".test")?;
         assert_eq!(selector, CSSSelector::Specific(vec![CSSSelectorData{class : Some("test".to_string()), id : None, tag : None }]));
         let selector = CSSSelector::from_str("tg.test")?;
@@ -106,11 +109,11 @@ mod CSSSelectorTests {
 }
 
 impl HtmlNode {
-    fn new() -> HtmlNode {
-        HtmlNode { tag : None, class : None, id : None, contents : None, attributes : None}
+    fn new<S: Into<String>>(tag : S) -> HtmlNode {
+        HtmlNode { tag : tag.into(), class : None, id : None, contents : None, attributes : None}
     }
 
-    fn Select(&self, selector : &CSSSelector) -> Option<Vec<&HtmlNode>> {
+    fn select(&self, selector : &CSSSelector) -> Option<Vec<&HtmlNode>> {
         let mut out : Vec<&HtmlNode> = Vec::new();
 
         match selector {
@@ -173,7 +176,7 @@ impl HtmlNode {
                     match content {
                         HtmlContent::Text(_) => (),
                         HtmlContent::Node(node) => {
-                            match node.Select(&selector) {
+                            match node.select(&selector) {
                                 None => (),
                                 Some(nodes) => {
                                     out.extend(nodes);
@@ -195,19 +198,15 @@ impl HtmlNode {
 }
 
 #[cfg(test)]
-mod HtmlNodeTests {
+mod html_node_tests {
     use super::*;
 
     #[test]
     fn node_selection() {
-        let mut root = HtmlNode::new();
-        root.tag = Some("html".to_string());
-
-        let mut node1 = HtmlNode::new();
-        node1.tag = Some("div".to_string());
+        let mut root = HtmlNode::new("html");
+        let mut node1 = HtmlNode::new("div");
         node1.class = Some(vec!["test".to_string(), "test-2".to_string()]);
-        let mut node2 = HtmlNode::new();
-        node2.tag = Some("div".to_string());
+        let mut node2 = HtmlNode::new("div");
         node2.class = Some(vec!["test".to_string()]);
 
         root.contents = Some(vec![HtmlContent::Node(node1), HtmlContent::Text("some_text.omg".to_string()), HtmlContent::Node(node2)]);
@@ -332,11 +331,11 @@ fn get_next_non_whitespace(chs : &mut std::str::Chars) -> Result<char, ParseHtml
 }
 
 #[cfg(test)]
-mod ParseIterTests {
+mod parse_iter_tests {
     use super::*;
 
     #[test]
-    fn ParseCharsTest() {
+    fn parse_chars_test() {
         assert_eq!(parse_until_char(&mut "Something else".chars(), ' ', false).unwrap(), "Something");
         assert_eq!(parse_until_char(&mut "Something else".chars(), ' ', true).unwrap(), "Something ");
         assert_eq!(parse_until_one_of(&mut "Something else <".chars(), vec![' ', '<'], false).unwrap(), "Something");
@@ -363,7 +362,7 @@ enum HtmlTag {
     EndTag(String), //eg </div>
     NewTag(HtmlNode), //eg <div class="test">
     Comment(String), //eg <!-- text --!>
-    None,
+    DocType(String),
 }
 
 fn parse_html_tag(chs : &mut std::str::Chars) -> Result<HtmlTag, ParseHtmlError> {
@@ -387,119 +386,147 @@ fn parse_html_tag(chs : &mut std::str::Chars) -> Result<HtmlTag, ParseHtmlError>
     if buffer.starts_with("!--") {
         // comment - parse the rest of the comment
         buffer.drain(0..3);
-        if buffer.ends_with("--!>") {
+        if buffer.ends_with("-->") {
             buffer.truncate(buffer.len()-4);
             return Ok(HtmlTag::Comment(buffer));
         }
-        buffer.push_str(parse_until_str(chs, &"--!", false)?.as_str());
+        buffer.push_str(parse_until_str(chs, &"-->", false)?.as_str());
         return Ok(HtmlTag::Comment(buffer))
+    } else if buffer.starts_with("!DOCTYPE ") {
+        buffer.clear();
+        return Ok(HtmlTag::DocType(parse_until_char(chs, '>', false)?));
     }
     let (tag_str, ending) = buffer.split_at(buffer.len()-1);
-    let mut node = HtmlNode::new();
-    node.tag = Some(tag_str.to_owned());
-    if ending == ">" {
-        return Ok(HtmlTag::NewTag(node));
-    }
-    //there are some attributes - parse the attributes
-
-    //define the some checking closures
-    let is_ws_eq_or_gt = |ch : &char| -> bool {
-        return ch.is_ascii_whitespace() || *ch == '=' || *ch == '>';
-    };
-    let is_ws_or_gt = |ch : &char| -> bool {
-        return ch.is_ascii_whitespace() || *ch == '>';
-    };
-    loop {
-        buffer.clear();
-        buffer.push(get_next_non_whitespace(chs)?);
-        if buffer == ">" {
-            //didn't get an attribute - just got the end of tag symbol
-            return Ok(HtmlTag::NewTag(node));
-        }
-        buffer.push_str(parse_until(chs, is_ws_eq_or_gt, true)?.as_str());
-        let (attr_str, attr_ending) = buffer.split_at(buffer.len()-1);
-        if attr_ending == ">" {
-            if attr_str.len() > 0 {
-                return Err(ParseHtmlError::new(format!("Expected value for attribute '{}', got {} instead of '='.", attr_str, attr_ending)));
+    let mut node = HtmlNode::new(tag_str);
+    if ending != ">" {
+        //define the some checking closures
+        let is_ws_eq_or_gt = |ch : &char| -> bool {
+            return ch.is_ascii_whitespace() || *ch == '=' || *ch == '>';
+        };
+        loop {
+            buffer.clear();
+            buffer.push(get_next_non_whitespace(chs)?);
+            if buffer == ">" {
+                //didn't get an attribute - just got the end of tag symbol
+                break;
             }
-            //didn't get an attribute - just got the end of tag symbol
-            return Ok(HtmlTag::NewTag(node));
-        }
-        if attr_ending.chars().next().unwrap().is_ascii_whitespace()  {
-            //clear all whitespace until we get a '='
-            let ch = get_next_non_whitespace(chs)?;
-            if ch != '=' {
-                return Err(ParseHtmlError::new(format!("Expected value for attribute '{}', got {} instead of '='.", attr_str, ch)));
+            buffer.push_str(parse_until(chs, is_ws_eq_or_gt, true)?.as_str());
+            let (attr_str, attr_ending) = buffer.split_at(buffer.len()-1);
+            if attr_ending == ">" {
+                if attr_str.len() > 0 {
+                    return Err(ParseHtmlError::new(format!("Expected value for attribute '{}', got {} instead of '='.", attr_str, attr_ending)));
+                }
+                //didn't get an attribute - just got the end of tag symbol
+                break;
             }
-        }
-        //We have 'attr =' now need to read in the value
-        let (attr_value_string, attr_value_ending) = parse_string(chs)?;
-        if attr_str == "class" {
-            node.class = Some(parse_attibute_value(attr_value_string));
-        } else if attr_str == "id" {
-            node.id = Some(parse_attibute_value(attr_value_string));
-        } else {
-            match &mut node.attributes {
-                Some(attr_map) => {
-                    attr_map.insert(attr_str.to_string(), attr_value_string);
-                },
-                None => {
-                    let mut attr_map = HashMap::new();
-                    attr_map.insert(attr_str.to_string(), attr_value_string);
-                    node.attributes = Some(attr_map);
+            if attr_ending.chars().next().unwrap().is_ascii_whitespace()  {
+                //clear all whitespace until we get a '='
+                let ch = get_next_non_whitespace(chs)?;
+                if ch != '=' {
+                    return Err(ParseHtmlError::new(format!("Expected value for attribute '{}', got {} instead of '='.", attr_str, ch)));
                 }
             }
+            //We have 'attr =' now need to read in the value
+            let (attr_value_string, attr_value_ending) = parse_string(chs)?;
+            if attr_str == "class" {
+                node.class = Some(parse_attibute_value(attr_value_string));
+            } else if attr_str == "id" {
+                node.id = Some(parse_attibute_value(attr_value_string));
+            } else {
+                match &mut node.attributes {
+                    Some(attr_map) => {
+                        attr_map.insert(attr_str.to_string(), attr_value_string);
+                    },
+                    None => {
+                        let mut attr_map = HashMap::new();
+                        attr_map.insert(attr_str.to_string(), attr_value_string);
+                        node.attributes = Some(attr_map);
+                    }
+                }
+            }
+            if attr_value_ending == '>' {
+                break;
+            }
         }
-        if attr_value_ending == '>' {
-            return Ok(HtmlTag::NewTag(node));
+    }
+    //Return the node without content if it is a singleton tag
+    match node.tag.as_str() {
+        "area" => return Ok(HtmlTag::NewTag(node)),
+        "base" => return Ok(HtmlTag::NewTag(node)),
+        "br" => return Ok(HtmlTag::NewTag(node)),
+        "col" => return Ok(HtmlTag::NewTag(node)),
+        "command" => return Ok(HtmlTag::NewTag(node)),
+        "embed" => return Ok(HtmlTag::NewTag(node)),
+        "hr" => return Ok(HtmlTag::NewTag(node)),
+        "img" => return Ok(HtmlTag::NewTag(node)),
+        "input" => return Ok(HtmlTag::NewTag(node)),
+        "keygen" => return Ok(HtmlTag::NewTag(node)),
+        "link" => return Ok(HtmlTag::NewTag(node)),
+        "meta" => return Ok(HtmlTag::NewTag(node)),
+        "param" => return Ok(HtmlTag::NewTag(node)),
+        "source" => return Ok(HtmlTag::NewTag(node)),
+        "track" => return Ok(HtmlTag::NewTag(node)),
+        "wbr" => return Ok(HtmlTag::NewTag(node)),
+        _ => {
+            node.contents = parse_html_content(chs, &node.tag)?;
+            println!("Node found {}", &node.tag);
+            Ok(HtmlTag::NewTag(node))
         }
     }
 }
 #[cfg(test)]
-mod ParseHtmlTagTests {
+mod parse_html_tag_tests {
     use super::*;
 
+    //TODO: How to test failing cases...
     #[test]
-    fn ParseHtmlTagTest() {
-        assert_eq!(parse_html_tag(&mut "div>".chars()).unwrap(), HtmlTag::NewTag(HtmlNode { tag: Some("div".to_string()), class : None, id : None, attributes : None, contents : None }));
-        assert_eq!(parse_html_tag(&mut "/div>".chars()).unwrap(), HtmlTag::EndTag("div".to_string()));
-        assert_eq!(parse_html_tag(&mut "/div >".chars()).unwrap(), HtmlTag::EndTag("div".to_string()));
+    fn parse_html_start_tag_test() {
+        assert_eq!(parse_html_tag(&mut "div></div>".chars()).unwrap(), HtmlTag::NewTag(HtmlNode { tag: "div".to_string(), class : None, id : None, attributes : None, contents : None }));
         assert_eq!(
-            parse_html_tag(&mut "div  class=\"class1\">".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: Some("div".to_string()), class : Some(vec!["class1".to_string()]), id : None, attributes : None, contents : None })
+            parse_html_tag(&mut "div  class=\"class1\">Some Content</div>".chars()).unwrap(), 
+            HtmlTag::NewTag(HtmlNode { tag: "div".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : None, contents : Some(vec![HtmlContent::Text("Some Content".to_owned())]) })
         );
         assert_eq!(
-            parse_html_tag(&mut "div  class=\"class1\" >".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: Some("div".to_string()), class : Some(vec!["class1".to_string()]), id : None, attributes : None, contents : None })
+            parse_html_tag(&mut "div  class=\"class1\" ></div>".chars()).unwrap(), 
+            HtmlTag::NewTag(HtmlNode { tag: "div".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : None, contents : None })
         );
         assert_eq!(
-            parse_html_tag(&mut "a class=\"class1\" id = \"id1\">".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: Some("a".to_string()), class : Some(vec!["class1".to_string()]), id : Some(vec!["id1".to_string()]), attributes : None, contents : None })
+            parse_html_tag(&mut "a class=\"class1\" id = \"id1\"></a>".chars()).unwrap(), 
+            HtmlTag::NewTag(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : Some(vec!["id1".to_string()]), attributes : None, contents : None })
         );
         assert_eq!(
-            parse_html_tag(&mut "a class=\"class1\" id = \"id1\" >".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: Some("a".to_string()), class : Some(vec!["class1".to_string()]), id : Some(vec!["id1".to_string()]), attributes : None, contents : None })
+            parse_html_tag(&mut "a class=\"class1\" id = \"id1\" ></a>".chars()).unwrap(), 
+            HtmlTag::NewTag(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : Some(vec!["id1".to_string()]), attributes : None, contents : None })
         );
         let mut map = HashMap::new();
         map.insert("other_attr".to_string(), "something".to_string());
         assert_eq!(
-            parse_html_tag(&mut "a class=\"class1\" other_attr=something>".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: Some("a".to_string()), class : Some(vec!["class1".to_string()]), id : None, attributes : Some(map), contents : None })
+            parse_html_tag(&mut "a class=\"class1\" other_attr=something></a>".chars()).unwrap(), 
+            HtmlTag::NewTag(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : Some(map), contents : None })
         );
+
+    }
+
+    #[test]
+    fn parse_html_end_tag_test() {
+        assert_eq!(parse_html_tag(&mut "/div>".chars()).unwrap(), HtmlTag::EndTag("div".to_string()));
+        assert_eq!(parse_html_tag(&mut "/div >".chars()).unwrap(), HtmlTag::EndTag("div".to_string()));
+    }
+
+    #[test]
+    fn parse_html_comment_tag_test() {
         assert_eq!(
-            parse_html_tag(&mut "!-- something --!>".chars()).unwrap(), 
+            parse_html_tag(&mut "!-- something -->".chars()).unwrap(), 
             HtmlTag::Comment(" something ".to_string())
         );
         assert_eq!(
-            parse_html_tag(&mut "!-- something\n something else --!>".chars()).unwrap(), 
+            parse_html_tag(&mut "!-- something\n something else -->".chars()).unwrap(), 
             HtmlTag::Comment(" something\n something else ".to_string())
         );
-        //TODO: How to test failing cases...
-        //TODO: split tests into more functions (eg start tag, end tag, comment, etc.)
     }
 }
 
-fn ParseHtmlContent(chs : &mut std::str::Chars, tag : &str) -> Result<Option<Vec<HtmlContent>>, ParseHtmlError> {
+pub fn parse_html_content(chs : &mut std::str::Chars, tag : &str) -> Result<Option<Vec<HtmlContent>>, ParseHtmlError> {
     let mut text_content = String::new();
     let mut content : Vec<HtmlContent> = Vec::new();
     while let Some(cur_char) = chs.next() {
@@ -527,7 +554,7 @@ fn ParseHtmlContent(chs : &mut std::str::Chars, tag : &str) -> Result<Option<Vec
                 HtmlTag::Comment(comment) => {
                     content.push(HtmlContent::Comment(comment));
                 },
-                HtmlTag::None => (),
+                HtmlTag::DocType(t) => return Err(ParseHtmlError::new(format!("'DOCTYPE {}' element found in middle of content", t))),
             }
         } else {
             text_content.push(cur_char);
@@ -538,32 +565,150 @@ fn ParseHtmlContent(chs : &mut std::str::Chars, tag : &str) -> Result<Option<Vec
 }
 
 
-enum ParseHtmlMode {
-    InStartTag,
-    InEndTag,
-    InContent,
+impl HtmlDocument {
+    fn new() -> HtmlDocument {
+        HtmlDocument {doctype : None, nodes : None}
+    }
+
+    fn push_content(&mut self, content : HtmlContent) {
+        match &mut self.nodes {
+            Some(nodes) => nodes.push(content),
+            None => self.nodes = Some(vec![content]),
+        }
+    }
 }
 
 impl FromStr for HtmlDocument {
     type Err = ParseHtmlError;
     fn from_str(html_str: &str) -> std::result::Result<Self, <Self as std::str::FromStr>::Err> {
-        let mut parse_mode = ParseHtmlMode::InContent;
-        let mut cur_slice : &str;
-        let mut node = HtmlNode::new();
-        let ch_iter = html_str.chars();
-        for ch in ch_iter {
+        let mut doc = HtmlDocument::new();
+        let mut chs = html_str.chars();
+        let mut buffer = String::new();
+        while let Some(ch) = chs.next() {
             if ch == '<' {
-                match parse_mode {
-                    ParseHtmlMode::InStartTag => return Err(ParseHtmlError::new("".to_string())),
-                    ParseHtmlMode::InEndTag => return Err(ParseHtmlError::new("".to_string())),
-                    ParseHtmlMode::InContent => {
-                        //Need to work out how to determine it should be start or end tag...
-                        //TODO: Follow idea in notebook - parse_until....
-                        parse_mode = ParseHtmlMode::InStartTag;
-                    }
+                if buffer.len() > 0 {
+                    doc.push_content(HtmlContent::Text(buffer));
+                    buffer = String::new();
                 }
+                match parse_html_tag(&mut chs)? {
+                    HtmlTag::DocType(t) => doc.doctype = Some(t),
+                    HtmlTag::NewTag(node) =>  doc.push_content(HtmlContent::Node(node)),
+                    HtmlTag::EndTag(t) => return Err(ParseHtmlError::new(format!("Found end tag {} before opening tag.", t))),
+                    HtmlTag::Comment(c) => doc.push_content(HtmlContent::Comment(c)),
+                }
+            } else {
+                buffer.push(ch);
             }
         }
-        Err(ParseHtmlError::new("".to_string()))
+        Ok(doc)
+    }
+}
+
+#[cfg(test)]
+mod parse_html_document_tests {
+    use super::*;
+
+    #[test]
+    fn parse_test_document() {
+        let test_html = r#"<!DOCTYPE html>
+<!-- saved from url=(0117)https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/samp/htmldoc.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>A Sample HTML Document (Test File)</title>
+
+<meta name="description" content="A blank HTML document for testing purposes.">
+<meta name="author" content="Six Revisions">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="http://sixrevisions.com/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    
+<h1 class=heading>A Sample HTML Document (Test File)</h1>
+<p>A blank HTML document for testing purposes.</p>
+<p><a href="https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/html5download-demo.html">Go back to the demo</a></p>
+<p><a href="http://sixrevisions.com/html5/download-attribute/">Read the HTML5 download attribute guide</a></p>
+
+
+</body></html>"#;
+        let doc = HtmlDocument::from_str(test_html).unwrap();
+        assert_eq!(doc.doctype, Some("html".to_owned()));
+        let mut meta_attrs = HashMap::new();
+        meta_attrs.insert("http-equiv".to_owned(), "Content-Type".to_owned());
+        meta_attrs.insert("content".to_owned(), "text/html; charset=UTF-8".to_owned());
+        let mut desc_attrs = HashMap::new();
+        desc_attrs.insert("name".to_owned(), "description".to_owned());
+        desc_attrs.insert("content".to_owned(), "A blank HTML document for testing purposes.".to_owned());
+        let mut auth_attrs = HashMap::new();
+        auth_attrs.insert("name".to_owned(), "author".to_owned());
+        auth_attrs.insert("content".to_owned(), "Six Revisions".to_owned());
+        let mut view_attrs = HashMap::new();
+        view_attrs.insert("name".to_owned(), "viewport".to_owned());
+        view_attrs.insert("content".to_owned(), "width=device-width, initial-scale=1".to_owned());
+        let mut link_attrs = HashMap::new();
+        link_attrs.insert("rel".to_owned(), "icon".to_owned());
+        link_attrs.insert("href".to_owned(), "http://sixrevisions.com/favicon.ico".to_owned());
+        link_attrs.insert("type".to_owned(), "image/x-icon".to_owned());
+        let mut  a1_attrs = HashMap::new();
+        a1_attrs.insert("href".to_owned(), "https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/html5download-demo.html".to_owned());
+        let mut a2_attrs = HashMap::new();
+        a2_attrs.insert("href".to_owned(), "http://sixrevisions.com/html5/download-attribute/".to_owned());
+        let nodes = vec![
+            HtmlContent::Text("\n".to_owned()),
+            HtmlContent::Comment(" saved from url=(0117)https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/samp/htmldoc.html ".to_owned()),
+            HtmlContent::Text("\n".to_owned()),
+            HtmlContent::Node(HtmlNode{
+                tag : "html".to_owned(),
+                class : None,
+                id : None,
+                attributes : None,
+                contents : Some(vec![
+                    HtmlContent::Node(HtmlNode{
+                        tag : "head".to_owned(),
+                        class : None,
+                        id : None,
+                        attributes : None,
+                        contents : Some(vec![
+                            HtmlContent::Node(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(meta_attrs), contents : None}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode { tag : "title".to_owned(), class : None, id : None, attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())])}),
+                            HtmlContent::Text("\n\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(desc_attrs), contents : None}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(auth_attrs), contents : None}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(view_attrs), contents : None}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "link".to_owned(), id : None, class : None, attributes : Some(link_attrs), contents : None}),
+                            HtmlContent::Text("\n".to_owned()),
+                        ]),
+                    }),
+                    HtmlContent::Text("\n".to_owned()),
+                    HtmlContent::Node(HtmlNode{
+                        tag : "body".to_owned(),
+                        class : None,
+                        id : None,
+                        attributes : None,
+                        contents : Some(vec![
+                            HtmlContent::Text("\n    \n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "h1".to_owned(), id : None, class : Some(vec!["heading".to_owned()]), attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())])}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![HtmlContent::Text("A blank HTML document for testing purposes.".to_owned())])}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![
+                                HtmlContent::Node(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a1_attrs), contents : Some(vec![HtmlContent::Text("Go back to the demo".to_owned())])}),
+                                ])}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![
+                                HtmlContent::Node(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a2_attrs), contents : Some(vec![HtmlContent::Text("Read the HTML5 download attribute guide".to_owned())])}),
+                                ])}),
+                            HtmlContent::Text("\n\n\n".to_owned()),
+                        ]),
+                    }),
+                ]),
+            })
+        ];
+
+
+        assert_eq!(doc.nodes, Some(nodes));
+        
     }
 }
