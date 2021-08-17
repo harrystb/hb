@@ -59,9 +59,9 @@ enum CSSSelector {
     Specific(Vec<CSSSelectorData>),
 }
 
-impl FromStr for CSSSelector {
-    type Err = ParseHtmlError;
-    fn from_str(s: &str) -> std::result::Result<Self, <Self as std::str::FromStr>::Err> {
+impl CSSSelector {
+    fn new<S: Into<String>>(s : S) -> Result<Self, ParseHtmlError>{
+        let s = s.into();
         if s == "*" {
             return Ok(CSSSelector::All);
         }
@@ -86,6 +86,14 @@ impl FromStr for CSSSelector {
             return Ok(CSSSelector::Specific(output));
         }
         return Err(ParseHtmlError::new(format!("Unknown selector {}", s)));    
+
+    }
+}
+
+impl FromStr for CSSSelector {
+    type Err = ParseHtmlError;
+    fn from_str(s: &str) -> std::result::Result<Self, <Self as std::str::FromStr>::Err> {
+        CSSSelector::new(s)
     }
 }
 
@@ -111,88 +119,6 @@ mod css_selector_tests {
 impl HtmlNode {
     fn new<S: Into<String>>(tag : S) -> HtmlNode {
         HtmlNode { tag : tag.into(), class : None, id : None, contents : None, attributes : None}
-    }
-
-    fn select(&self, selector : &CSSSelector) -> Option<Vec<&HtmlNode>> {
-        let mut out : Vec<&HtmlNode> = Vec::new();
-
-        match selector {
-            CSSSelector::All => {
-                out.push(self);
-                ()
-            },
-            CSSSelector::Specific(selector_data_vec) =>{
-                let mut class_matches = false;
-                let mut id_matches = false;
-                for selector_data in selector_data_vec {
-                    class_matches = match &selector_data.class {
-                        None => true,
-                        Some(selector_class) => {
-                            match &self.class {
-                                None => false,
-                                Some(classes) => {
-                                    let mut passes = false;
-                                    for class in classes {
-                                        if class == selector_class {
-                                            passes = true;
-                                            break;
-                                        }
-                                    }
-                                    passes
-                                }
-                            }
-                        }
-                    };
-                    id_matches = match &selector_data.id {
-                        None => true,
-                        Some(selector_id) => {
-                            match &self.id {
-                                None => false,
-                                Some(ids) => {
-                                    let mut passes = false;
-                                    for id in ids {
-                                        if id == selector_id {
-                                            passes = true;
-                                            break;
-                                        }
-                                    }
-                                    passes
-                                }
-                            }
-                        }
-                    };
-                }
-                if class_matches & id_matches {
-                    out.push(self);
-                }
-                ()
-            }
-        }
-
-        match &self.contents {
-            None => (),
-            Some(contents) => {
-                for content in contents{
-                    match content {
-                        HtmlContent::Text(_) => (),
-                        HtmlContent::Node(node) => {
-                            match node.select(&selector) {
-                                None => (),
-                                Some(nodes) => {
-                                    out.extend(nodes);
-                                    ()
-                                } 
-                            }
-                        },
-                        HtmlContent::Comment(_) => (),
-                    }
-                }
-            }
-        }
-        if out.len() > 0 {
-            return None;
-        }
-        Some(out)
     }
 
 }
@@ -712,3 +638,39 @@ mod parse_html_document_tests {
         
     }
 }
+
+//Functions to implment
+// doc.iter()
+// node.iter()
+// vec<Content>.iter()
+// [Content].iter()
+// .matches(selector)
+// .has_child(selector)
+// .has_decendant(selector)
+// .contains_text(text)
+// .child_contains_text(text)
+// .decendant_contains_text(text)
+// .get_text()
+// .get_child_text()
+// .get_decendant_text()
+
+
+//Adapters to implement
+// select(selector)
+// children(selector)
+// decendants(selector)
+// has_child(selector)
+// has_decendant(selector)
+// contains_text(text)
+// child_contains_text(text)
+
+
+// Get all divs which contains a p which then select decendants which are a
+// CSS selectors don't support his by default!
+// doc.iter().select("div").has_child("p").decendants("a")
+// 
+// Get all a which are children of p which are decendants of divs with class c1
+// Using a CSS selector
+// doc.iter().select("div.c1 p>a")
+// Or in long form...
+// doc.iter().select("div.c1").decendants("p").children("a")
