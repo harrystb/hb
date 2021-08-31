@@ -10,6 +10,10 @@ impl ParseHtmlError {
     fn new(msg : String) -> ParseHtmlError {
         ParseHtmlError { msg : msg}
     }
+
+    fn with_msg<S : Into<String>>(msg : S) -> ParseHtmlError {
+        return ParseHtmlError::new(msg.into());
+    }
 }
 
 impl std::fmt::Display for ParseHtmlError {
@@ -636,6 +640,87 @@ mod parse_html_document_tests {
 
         assert_eq!(doc.nodes, Some(nodes));
         
+    }
+}
+
+struct HtmlNodeIterator<'a> {
+    node : &'a HtmlNode,
+    content_index : Option<usize>,
+    content_iter : Option<Box<HtmlNodeIterator<'a>>>,
+}
+
+impl <'a> Iterator for HtmlNodeIterator <'a> {
+    type Item = &'a HtmlNode;
+    fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item>
+    { 
+        todo!() // Similar to HtmlDocIterator below...
+    }
+}
+
+impl HtmlNode {
+    fn iter(&self) -> HtmlNodeIterator {
+        HtmlNodeIterator { node : self, content_index : None, content_iter : None}
+    }
+}
+
+struct HtmlDocIterator<'a> {
+    doc : &'a HtmlDocument,
+    node_vec_iter : Option<std::slice::Iter<'a, HtmlContent>>,
+    current_node_iter : Option<HtmlNodeIterator<'a>>
+}
+
+impl<'a> Iterator for HtmlDocIterator<'a> {
+    type Item = &'a HtmlNode;
+    fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> 
+    {
+        match &mut self.node_vec_iter {
+            None => {
+                //Initialise the vec iter
+                match &self.doc.nodes {
+                    None => None, //no content - return None
+                    Some(nodes) => {
+                        self.node_vec_iter = Some(nodes.iter());
+                        self.next() //call next again to go through other path
+                    },
+                }
+            },
+            Some(iter) => {
+                // check the current node iter then  increment it if needed
+                match &mut self.current_node_iter {
+                    None => {
+                        //get next node from the content then set up the current_node_iter and return the node found
+                        while let Some(content) = iter.next() {
+                            match content {
+                                HtmlContent::Comment(_) => (),
+                                HtmlContent::Text(_) => (),
+                                HtmlContent::Node(n) => {
+                                    self.current_node_iter = Some(n.iter());
+                                    return Some(n);          
+                                }
+                            }
+                        }
+                        None
+                    },
+                    Some(node_iter) => {
+                        match node_iter.next() {
+                            Some(n) => Some(n),
+                            None => {
+                                // end of this node, move current_node_iter to next node (via next recursion)
+                                self.current_node_iter = None;
+                                self.next()
+                            },
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+}
+
+impl HtmlDocument {
+    fn iter(&self) -> HtmlDocIterator {
+        HtmlDocIterator {doc : self, current_node_iter : None, node_vec_iter : None}
     }
 }
 
