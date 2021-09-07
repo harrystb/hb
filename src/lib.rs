@@ -35,7 +35,7 @@ pub struct HtmlDocument {
     nodes : Option<Vec<HtmlContent>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct HtmlNode {
     tag : String,
     contents : Option<Vec<HtmlContent>>,
@@ -44,7 +44,7 @@ pub struct HtmlNode {
     attributes : Option<HashMap<String, String>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum HtmlContent {
     Text(String),
     Node(HtmlNode),
@@ -645,21 +645,62 @@ mod parse_html_document_tests {
 
 struct HtmlNodeIterator<'a> {
     node : &'a HtmlNode,
-    content_index : Option<usize>,
-    content_iter : Option<Box<HtmlNodeIterator<'a>>>,
+    content_vec_iter : Option<std::slice::Iter<'a, HtmlContent>>,
+    current_content_iter : Option<Box<HtmlNodeIterator<'a>>>,
 }
 
 impl <'a> Iterator for HtmlNodeIterator <'a> {
     type Item = &'a HtmlNode;
     fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item>
     { 
-        todo!() // Similar to HtmlDocIterator below...
+        match &mut self.content_vec_iter {
+            None => {
+                //Initialise the vec iter
+                match &self.node.contents {
+                    None => None, //no content - return None
+                    Some(nodes) => {
+                        self.content_vec_iter = Some(nodes.iter());
+                        self.next() //call next again to go through other path
+                    },
+                }
+            },
+            Some(iter) => {
+                // check the current node iter then  increment it if needed
+                match &mut self.current_content_iter {
+                    None => {
+                        //get next node from the content then set up the current_node_iter and return the node found
+                        while let Some(content) = iter.next() {
+                            match content {
+                                HtmlContent::Comment(_) => (),
+                                HtmlContent::Text(_) => (),
+                                HtmlContent::Node(n) => {
+                                    self.current_content_iter = Some(Box::new(n.iter()));
+                                    return Some(n);          
+                                }
+                            }
+                        }
+                        None
+                    },
+                    Some(node_iter) => {
+                        match node_iter.next() {
+                            Some(n) => Some(n),
+                            None => {
+                                // end of this node, move current_node_iter to next node (via next recursion)
+                                self.current_content_iter = None;
+                                self.next()
+                            },
+                        }
+                    }
+                }
+
+            }
+        }
     }
 }
 
 impl HtmlNode {
     fn iter(&self) -> HtmlNodeIterator {
-        HtmlNodeIterator { node : self, content_index : None, content_iter : None}
+        HtmlNodeIterator { node : self, content_vec_iter : None, current_content_iter : None}
     }
 }
 
@@ -724,9 +765,233 @@ impl HtmlDocument {
     }
 }
 
+struct HtmlContentSliceIterator<'a> {
+    slice_iter : std::slice::Iter<'a, HtmlContent>,
+    current_content_iter : Option<HtmlNodeIterator<'a>>,
+}
+
+trait HtmlContentSliceIterCreator {
+    fn html_iter(&self) -> HtmlContentSliceIterator;
+}
+
+impl HtmlContentSliceIterCreator for [HtmlContent] {
+    fn html_iter(&self) -> HtmlContentSliceIterator {
+        HtmlContentSliceIterator { slice_iter : self.iter(), current_content_iter : None, }
+    }
+}
+impl<'a> Iterator for HtmlContentSliceIterator<'a> {
+    type Item = &'a HtmlNode;
+    fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> 
+    {
+        // check the current node iter then  increment it if needed
+        match &mut self.current_content_iter {
+            None => {
+                //get next node from the content then set up the current_node_iter and return the node found
+                while let Some(content) = self.slice_iter.next() {
+                    match content {
+                        HtmlContent::Comment(_) => (),
+                        HtmlContent::Text(_) => (),
+                        HtmlContent::Node(n) => {
+                            self.current_content_iter = Some(n.iter());
+                            return Some(n);          
+                        }
+                    }
+                }
+                None
+            },
+            Some(node_iter) => {
+                match node_iter.next() {
+                    Some(n) => Some(n),
+                    None => {
+                        // end of this node, move current_node_iter to next node (via next recursion)
+                        self.current_content_iter = None;
+                        self.next()
+                    },
+                }
+            }
+        }
+
+    }
+}
+
+struct HtmlNodeSliceIterator<'a> {
+    slice_iter : std::slice::Iter<'a, HtmlNode>,
+    current_content_iter : Option<HtmlNodeIterator<'a>>,
+}
+
+trait HtmlNodeSliceIterCreator {
+    fn html_iter(&self) -> HtmlNodeSliceIterator;
+}
+
+impl HtmlNodeSliceIterCreator for [HtmlNode] {
+    fn html_iter(&self) -> HtmlNodeSliceIterator {
+        HtmlNodeSliceIterator { slice_iter : self.iter(), current_content_iter : None, }
+    }
+}
+impl<'a> Iterator for HtmlNodeSliceIterator<'a> {
+    type Item = &'a HtmlNode;
+    fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> 
+    {
+        // check the current node iter then  increment it if needed
+        match &mut self.current_content_iter {
+            None => {
+                //get next node from the content then set up the current_node_iter and return the node found
+                match self.slice_iter.next() {
+                    Some(n) => {
+                            self.current_content_iter = Some(n.iter());
+                            return Some(n);          
+                        },
+                    None => None,
+                }
+            },
+            Some(node_iter) => {
+                match node_iter.next() {
+                    Some(n) => Some(n),
+                    None => {
+                        // end of this node, move current_node_iter to next node (via next recursion)
+                        self.current_content_iter = None;
+                        self.next()
+                    },
+                }
+            }
+        }
+
+    }
+}
+
+#[cfg(test)]
+mod html_iterator_tests {
+    use super::*;
+
+    #[test]
+    fn HTMLDocumentIteratorTest() {
+        let test_html = r#"<!DOCTYPE html>
+<html>
+<body>
+<h1 class=heading>A Sample HTML Document (Test File)</h1>
+<p>A blank HTML document for testing purposes.</p>
+<p><a href="a_path">Go back to the demo</a></p>
+</body></html>"#;
+
+        let doc = HtmlDocument::from_str(test_html).unwrap();
+        assert_eq!(doc.doctype, Some("html".to_owned()));
+        let mut meta_attrs = HashMap::new();
+        meta_attrs.insert("http-equiv".to_owned(), "Content-Type".to_owned());
+        meta_attrs.insert("content".to_owned(), "text/html; charset=UTF-8".to_owned());
+        let mut desc_attrs = HashMap::new();
+        desc_attrs.insert("name".to_owned(), "description".to_owned());
+        desc_attrs.insert("content".to_owned(), "A blank HTML document for testing purposes.".to_owned());
+        let mut auth_attrs = HashMap::new();
+        auth_attrs.insert("name".to_owned(), "author".to_owned());
+        auth_attrs.insert("content".to_owned(), "Six Revisions".to_owned());
+        let mut view_attrs = HashMap::new();
+        view_attrs.insert("name".to_owned(), "viewport".to_owned());
+        view_attrs.insert("content".to_owned(), "width=device-width, initial-scale=1".to_owned());
+        let mut link_attrs = HashMap::new();
+        link_attrs.insert("rel".to_owned(), "icon".to_owned());
+        link_attrs.insert("href".to_owned(), "http://sixrevisions.com/favicon.ico".to_owned());
+        link_attrs.insert("type".to_owned(), "image/x-icon".to_owned());
+        let mut  a1_attrs = HashMap::new();
+        a1_attrs.insert("href".to_owned(), "a_path".to_owned());
+        let nodes = vec![
+            HtmlContent::Text("\n".to_owned()),
+            HtmlContent::Node(HtmlNode{
+                tag : "html".to_owned(),
+                class : None,
+                id : None,
+                attributes : None,
+                contents : Some(vec![
+                    HtmlContent::Text("\n".to_owned()),
+                    HtmlContent::Node(HtmlNode{
+                        tag : "body".to_owned(),
+                        class : None,
+                        id : None,
+                        attributes : None,
+                        contents : Some(vec![
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "h1".to_owned(), id : None, class : Some(vec!["heading".to_owned()]), attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())])}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![HtmlContent::Text("A blank HTML document for testing purposes.".to_owned())])}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![
+                                HtmlContent::Node(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a1_attrs.clone()), contents : Some(vec![HtmlContent::Text("Go back to the demo".to_owned())])}),
+                                ])}),
+                            HtmlContent::Text("\n".to_owned()),
+                        ]),
+                    }),
+                ]),
+            })
+        ];
+        
+        let error_node = HtmlNode::new("error");
+        let top_node = match &nodes[1] {
+            HtmlContent::Node(n) => n,
+            HtmlContent::Comment(_) => &error_node,
+            HtmlContent::Text(_) => &error_node,
+        };
+        let next_node = HtmlNode{
+                        tag : "body".to_owned(),
+                        class : None,
+                        id : None,
+                        attributes : None,
+                        contents : Some(vec![
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "h1".to_owned(), id : None, class : Some(vec!["heading".to_owned()]), attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())])}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![HtmlContent::Text("A blank HTML document for testing purposes.".to_owned())])}),
+                            HtmlContent::Text("\n".to_owned()),
+                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![
+                                HtmlContent::Node(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a1_attrs.clone()), contents : Some(vec![HtmlContent::Text("Go back to the demo".to_owned())])}),
+                                ])}),
+                            HtmlContent::Text("\n".to_owned()),
+                        ]),
+                    };
+        let third_node = HtmlNode {tag : "h1".to_owned(), id : None, class : Some(vec!["heading".to_owned()]), attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())])};
+        let forth_node = HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![HtmlContent::Text("A blank HTML document for testing purposes.".to_owned())])};
+        let fifth_node = HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![
+                                HtmlContent::Node(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a1_attrs.clone()), contents : Some(vec![HtmlContent::Text("Go back to the demo".to_owned())])}),
+                                ])};
+        let last_node = HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a1_attrs.clone()), contents : Some(vec![HtmlContent::Text("Go back to the demo".to_owned())])};
+        let mut doc_iter = doc.iter();
+        assert_eq!(doc_iter.next(), Some(top_node));
+        assert_eq!(doc_iter.next(), Some(&next_node));
+        assert_eq!(doc_iter.next(), Some(&third_node));
+        assert_eq!(doc_iter.next(), Some(&forth_node));
+        assert_eq!(doc_iter.next(), Some(&fifth_node));
+        assert_eq!(doc_iter.next(), Some(&last_node));
+        assert_eq!(doc_iter.next(), None);
+
+        let content_vec = [
+            HtmlContent::Node(third_node.clone()),
+            HtmlContent::Node(forth_node.clone()),
+            HtmlContent::Node(fifth_node.clone()),
+            //last node is contained in fifth node
+        ];
+        let mut content_slice_iter = content_vec[..].html_iter();
+        assert_eq!(content_slice_iter.next(), Some(&third_node));
+        assert_eq!(content_slice_iter.next(), Some(&forth_node));
+        assert_eq!(content_slice_iter.next(), Some(&fifth_node));
+        assert_eq!(content_slice_iter.next(), Some(&last_node));
+        assert_eq!(content_slice_iter.next(), None);
+
+        let node_vec = [
+            third_node.clone(),
+            forth_node.clone(),
+            fifth_node.clone(),
+            //last node is contained in fifth node
+        ];
+        let mut node_slice_iter = node_vec[..].html_iter();
+        assert_eq!(node_slice_iter.next(), Some(&third_node));
+        assert_eq!(node_slice_iter.next(), Some(&forth_node));
+        assert_eq!(node_slice_iter.next(), Some(&fifth_node));
+        assert_eq!(node_slice_iter.next(), Some(&last_node));
+        assert_eq!(node_slice_iter.next(), None);
+
+        
+    }
+}
+
 //Functions to implment
-// doc.iter()
-// node.iter()
 // vec<Content>.iter()
 // [Content].iter()
 // .matches(selector)
