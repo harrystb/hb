@@ -859,6 +859,18 @@ impl<'a> Iterator for HtmlNodeSliceIterator<'a> {
     }
 }
 
+impl HtmlNodeSliceIterCreator for Vec<HtmlNode> {
+    fn html_iter(&self) -> HtmlNodeSliceIterator {
+        HtmlNodeSliceIterator { slice_iter : self.iter(), current_content_iter : None, }
+    }
+}
+impl HtmlContentSliceIterCreator for Vec<HtmlContent> {
+    fn html_iter(&self) -> HtmlContentSliceIterator {
+        HtmlContentSliceIterator { slice_iter : self.iter(), current_content_iter : None, }
+    }
+}
+
+
 #[cfg(test)]
 mod html_iterator_tests {
     use super::*;
@@ -961,40 +973,89 @@ mod html_iterator_tests {
         assert_eq!(doc_iter.next(), Some(&last_node));
         assert_eq!(doc_iter.next(), None);
 
-        let content_vec = [
+        let content_arr = [
             HtmlContent::Node(third_node.clone()),
             HtmlContent::Node(forth_node.clone()),
             HtmlContent::Node(fifth_node.clone()),
             //last node is contained in fifth node
         ];
-        let mut content_slice_iter = content_vec[..].html_iter();
+        let mut content_slice_iter = content_arr[..].html_iter();
         assert_eq!(content_slice_iter.next(), Some(&third_node));
         assert_eq!(content_slice_iter.next(), Some(&forth_node));
         assert_eq!(content_slice_iter.next(), Some(&fifth_node));
         assert_eq!(content_slice_iter.next(), Some(&last_node));
         assert_eq!(content_slice_iter.next(), None);
 
-        let node_vec = [
+        let node_arr = [
             third_node.clone(),
             forth_node.clone(),
             fifth_node.clone(),
             //last node is contained in fifth node
         ];
-        let mut node_slice_iter = node_vec[..].html_iter();
+        let mut node_slice_iter = node_arr[..].html_iter();
         assert_eq!(node_slice_iter.next(), Some(&third_node));
         assert_eq!(node_slice_iter.next(), Some(&forth_node));
         assert_eq!(node_slice_iter.next(), Some(&fifth_node));
         assert_eq!(node_slice_iter.next(), Some(&last_node));
         assert_eq!(node_slice_iter.next(), None);
 
+        let content_vec = vec![
+            HtmlContent::Node(third_node.clone()),
+            HtmlContent::Node(forth_node.clone()),
+            HtmlContent::Node(fifth_node.clone()),
+            //last node is contained in fifth node
+        ];
+        let mut content_slice_iter = content_vec.html_iter();
+        assert_eq!(content_slice_iter.next(), Some(&third_node));
+        assert_eq!(content_slice_iter.next(), Some(&forth_node));
+        assert_eq!(content_slice_iter.next(), Some(&fifth_node));
+        assert_eq!(content_slice_iter.next(), Some(&last_node));
+        assert_eq!(content_slice_iter.next(), None);
+
+        let node_vec = vec![
+            third_node.clone(),
+            forth_node.clone(),
+            fifth_node.clone(),
+            //last node is contained in fifth node
+        ];
+        let mut node_slice_iter = node_vec.html_iter();
+        assert_eq!(node_slice_iter.next(), Some(&third_node));
+        assert_eq!(node_slice_iter.next(), Some(&forth_node));
+        assert_eq!(node_slice_iter.next(), Some(&fifth_node));
+        assert_eq!(node_slice_iter.next(), Some(&last_node));
+        assert_eq!(node_slice_iter.next(), None);
         
     }
 }
 
+trait HtmlSelectorsTrait {
+    //To be implemented on both HtmlNode and HtmlContent
+    fn matches<'a, T : Into<&'a str>>(selector : T) -> bool;
+    fn has_child<'a, T : Into<&'a str>>(selector : T) -> bool;
+    fn has_decendant<'a, T : Into<&'a str>>(selector : T) -> bool;
+    fn contains_text<'a, T : Into<&'a str>>(selector : T) -> bool;
+    fn child_contains_text<'a, T : Into<&'a str>>(selector : T) -> bool;
+    fn decendant_contains_text<'a, T : Into<&'a str>>(selector : T) -> bool;
+    fn get_text() -> String;
+    fn get_child_text() -> String;
+    fn get_decendant_text() -> String;
+}
+
+impl HtmlSelectorsTrait for HtmlNode {
+fn matches<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+fn has_child<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+fn has_decendant<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+fn contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+fn child_contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+fn decendant_contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+fn get_text() -> std::string::String { todo!() }
+fn get_child_text() -> std::string::String { todo!() }
+fn get_decendant_text() -> std::string::String { todo!() }
+}
+
+
 //Functions to implment
-// vec<Content>.iter()
-// [Content].iter()
-// .matches(selector)
+// .matches(selector) - should this include child selectors (eg div p)...probably 
 // .has_child(selector)
 // .has_decendant(selector)
 // .contains_text(text)
