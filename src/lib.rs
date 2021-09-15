@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::rc::{Weak, Rc};
 
 pub struct ParseHtmlError {
     msg : String,
@@ -35,19 +37,45 @@ pub struct HtmlDocument {
     nodes : Option<Vec<HtmlContent>>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct HtmlNode {
     tag : String,
     contents : Option<Vec<HtmlContent>>,
     class : Option<Vec<String>>,
     id : Option<Vec<String>>,
     attributes : Option<HashMap<String, String>>,
+    parent : Option<Weak<RefCell<HtmlNode>>>,
+}
+
+impl PartialEq for HtmlNode {
+
+    fn eq(&self, other: &Self) -> bool 
+    {
+        self.id == other.id &&
+        self.attributes == other.attributes &&
+        self.class == other.class &&
+        self.contents == other.contents &&
+        self.tag == other.tag &&
+        (match &self.parent {
+            Some(parent) => {
+                match &other.parent {
+                    Some(other_parent) => parent.ptr_eq(&other_parent),
+                    None => false,
+                }},
+            None => {
+                match other.parent {
+                    Some(_) => false,
+                    None => true,
+                }
+            }
+        })  
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum HtmlContent {
     Text(String),
-    Node(HtmlNode),
+    Node(Rc<RefCell<HtmlNode>>),
     Comment(String),
 }
 
@@ -122,7 +150,7 @@ mod css_selector_tests {
 
 impl HtmlNode {
     fn new<S: Into<String>>(tag : S) -> HtmlNode {
-        HtmlNode { tag : tag.into(), class : None, id : None, contents : None, attributes : None}
+        HtmlNode { tag : tag.into(), class : None, id : None, contents : None, attributes : None, parent : None}
     }
 
 }
@@ -139,7 +167,7 @@ mod html_node_tests {
         let mut node2 = HtmlNode::new("div");
         node2.class = Some(vec!["test".to_string()]);
 
-        root.contents = Some(vec![HtmlContent::Node(node1), HtmlContent::Text("some_text.omg".to_string()), HtmlContent::Node(node2)]);
+        root.contents = Some(vec![HtmlContent::Node(Rc::new(RefCell::new(node1))), HtmlContent::Text("some_text.omg".to_string()), HtmlContent::Node(Rc::new(RefCell::new(node2)))]);
         //complete
     }
 }
@@ -290,12 +318,12 @@ mod parse_iter_tests {
 #[derive(Debug, PartialEq)]
 enum HtmlTag {
     EndTag(String), //eg </div>
-    NewTag(HtmlNode), //eg <div class="test">
+    NewTag(Rc<RefCell<HtmlNode>>), //eg <div class="test">
     Comment(String), //eg <!-- text --!>
     DocType(String),
 }
 
-fn parse_html_tag(chs : &mut std::str::Chars) -> Result<HtmlTag, ParseHtmlError> {
+fn parse_html_tag(chs : &mut std::str::Chars, parent_weak_rc : Option<Weak<RefCell<HtmlNode>>>) -> Result<HtmlTag, ParseHtmlError> {
     // read chars into the buffer until a > or ' ' is found
     let mut buffer = String::with_capacity(50);
     //read first character and determine if this is an end tag 
@@ -327,8 +355,13 @@ fn parse_html_tag(chs : &mut std::str::Chars) -> Result<HtmlTag, ParseHtmlError>
         return Ok(HtmlTag::DocType(parse_until_char(chs, '>', false)?));
     }
     let (tag_str, ending) = buffer.split_at(buffer.len()-1);
-    let mut node = HtmlNode::new(tag_str);
+    let mut node_rc = Rc::new(RefCell::new(HtmlNode::new(tag_str)));
+    match parent_weak_rc {
+        Some(weak_rc) => node_rc.borrow_mut().parent = Some(weak_rc.clone()),
+        None => (),
+    }
     if ending != ">" {
+        let mut node = node_rc.borrow_mut();
         //define the some checking closures
         let is_ws_eq_or_gt = |ch : &char| -> bool {
             return ch.is_ascii_whitespace() || *ch == '=' || *ch == '>';
@@ -380,27 +413,27 @@ fn parse_html_tag(chs : &mut std::str::Chars) -> Result<HtmlTag, ParseHtmlError>
         }
     }
     //Return the node without content if it is a singleton tag
-    match node.tag.as_str() {
-        "area" => return Ok(HtmlTag::NewTag(node)),
-        "base" => return Ok(HtmlTag::NewTag(node)),
-        "br" => return Ok(HtmlTag::NewTag(node)),
-        "col" => return Ok(HtmlTag::NewTag(node)),
-        "command" => return Ok(HtmlTag::NewTag(node)),
-        "embed" => return Ok(HtmlTag::NewTag(node)),
-        "hr" => return Ok(HtmlTag::NewTag(node)),
-        "img" => return Ok(HtmlTag::NewTag(node)),
-        "input" => return Ok(HtmlTag::NewTag(node)),
-        "keygen" => return Ok(HtmlTag::NewTag(node)),
-        "link" => return Ok(HtmlTag::NewTag(node)),
-        "meta" => return Ok(HtmlTag::NewTag(node)),
-        "param" => return Ok(HtmlTag::NewTag(node)),
-        "source" => return Ok(HtmlTag::NewTag(node)),
-        "track" => return Ok(HtmlTag::NewTag(node)),
-        "wbr" => return Ok(HtmlTag::NewTag(node)),
+    let tag = node_rc.borrow().tag.to_owned();
+    match tag.as_str() {
+        "area" => return Ok(HtmlTag::NewTag(node_rc)),
+        "base" => return Ok(HtmlTag::NewTag(node_rc)),
+        "br" => return Ok(HtmlTag::NewTag(node_rc)),
+        "col" => return Ok(HtmlTag::NewTag(node_rc)),
+        "command" => return Ok(HtmlTag::NewTag(node_rc)),
+        "embed" => return Ok(HtmlTag::NewTag(node_rc)),
+        "hr" => return Ok(HtmlTag::NewTag(node_rc)),
+        "img" => return Ok(HtmlTag::NewTag(node_rc)),
+        "input" => return Ok(HtmlTag::NewTag(node_rc)),
+        "keygen" => return Ok(HtmlTag::NewTag(node_rc)),
+        "link" => return Ok(HtmlTag::NewTag(node_rc)),
+        "meta" => return Ok(HtmlTag::NewTag(node_rc)),
+        "param" => return Ok(HtmlTag::NewTag(node_rc)),
+        "source" => return Ok(HtmlTag::NewTag(node_rc)),
+        "track" => return Ok(HtmlTag::NewTag(node_rc)),
+        "wbr" => return Ok(HtmlTag::NewTag(node_rc)),
         _ => {
-            node.contents = parse_html_content(chs, &node.tag)?;
-            println!("Node found {}", &node.tag);
-            Ok(HtmlTag::NewTag(node))
+            node_rc.borrow_mut().contents = parse_html_content(chs, tag.as_str(), Some(Rc::downgrade(&node_rc)))?;
+            Ok(HtmlTag::NewTag(node_rc))
         }
     }
 }
@@ -411,52 +444,54 @@ mod parse_html_tag_tests {
     //TODO: How to test failing cases...
     #[test]
     fn parse_html_start_tag_test() {
-        assert_eq!(parse_html_tag(&mut "div></div>".chars()).unwrap(), HtmlTag::NewTag(HtmlNode { tag: "div".to_string(), class : None, id : None, attributes : None, contents : None }));
+        assert_eq!(parse_html_tag(&mut "div></div>".chars(), None).unwrap(), HtmlTag::NewTag(Rc::new(RefCell::new(HtmlNode { tag: "div".to_string(), class : None, id : None, attributes : None, contents : None, parent : None }))));
+        let node_rc = Rc::new(RefCell::new(HtmlNode::new("a")));
+        assert_eq!(parse_html_tag(&mut "div></div>".chars(), Some(Rc::downgrade(&node_rc))).unwrap(), HtmlTag::NewTag(Rc::new(RefCell::new(HtmlNode { tag: "div".to_string(), class : None, id : None, attributes : None, contents : None, parent : Some(Rc::downgrade(&node_rc)) }))));
         assert_eq!(
-            parse_html_tag(&mut "div  class=\"class1\">Some Content</div>".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: "div".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : None, contents : Some(vec![HtmlContent::Text("Some Content".to_owned())]) })
+            parse_html_tag(&mut "div  class=\"class1\">Some Content</div>".chars(), None).unwrap(), 
+            HtmlTag::NewTag(Rc::new(RefCell::new(HtmlNode { tag: "div".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : None, contents : Some(vec![HtmlContent::Text("Some Content".to_owned())]), parent : None})))
         );
         assert_eq!(
-            parse_html_tag(&mut "div  class=\"class1\" ></div>".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: "div".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : None, contents : None })
+            parse_html_tag(&mut "div  class=\"class1\" ></div>".chars(), None).unwrap(), 
+            HtmlTag::NewTag(Rc::new(RefCell::new(HtmlNode { tag: "div".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : None, contents : None, parent : None })))
         );
         assert_eq!(
-            parse_html_tag(&mut "a class=\"class1\" id = \"id1\"></a>".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : Some(vec!["id1".to_string()]), attributes : None, contents : None })
+            parse_html_tag(&mut "a class=\"class1\" id = \"id1\"></a>".chars(), None).unwrap(), 
+            HtmlTag::NewTag(Rc::new(RefCell::new(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : Some(vec!["id1".to_string()]), attributes : None, contents : None, parent : None })))
         );
         assert_eq!(
-            parse_html_tag(&mut "a class=\"class1\" id = \"id1\" ></a>".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : Some(vec!["id1".to_string()]), attributes : None, contents : None })
+            parse_html_tag(&mut "a class=\"class1\" id = \"id1\" ></a>".chars(), None).unwrap(), 
+            HtmlTag::NewTag(Rc::new(RefCell::new(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : Some(vec!["id1".to_string()]), attributes : None, contents : None , parent : None})))
         );
         let mut map = HashMap::new();
         map.insert("other_attr".to_string(), "something".to_string());
         assert_eq!(
-            parse_html_tag(&mut "a class=\"class1\" other_attr=something></a>".chars()).unwrap(), 
-            HtmlTag::NewTag(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : Some(map), contents : None })
+            parse_html_tag(&mut "a class=\"class1\" other_attr=something></a>".chars(), None).unwrap(), 
+            HtmlTag::NewTag(Rc::new(RefCell::new(HtmlNode { tag: "a".to_string(), class : Some(vec!["class1".to_string()]), id : None, attributes : Some(map), contents : None , parent : None})))
         );
 
     }
 
     #[test]
     fn parse_html_end_tag_test() {
-        assert_eq!(parse_html_tag(&mut "/div>".chars()).unwrap(), HtmlTag::EndTag("div".to_string()));
-        assert_eq!(parse_html_tag(&mut "/div >".chars()).unwrap(), HtmlTag::EndTag("div".to_string()));
+        assert_eq!(parse_html_tag(&mut "/div>".chars(), None).unwrap(), HtmlTag::EndTag("div".to_string()));
+        assert_eq!(parse_html_tag(&mut "/div >".chars(), None).unwrap(), HtmlTag::EndTag("div".to_string()));
     }
 
     #[test]
     fn parse_html_comment_tag_test() {
         assert_eq!(
-            parse_html_tag(&mut "!-- something -->".chars()).unwrap(), 
+            parse_html_tag(&mut "!-- something -->".chars(), None).unwrap(), 
             HtmlTag::Comment(" something ".to_string())
         );
         assert_eq!(
-            parse_html_tag(&mut "!-- something\n something else -->".chars()).unwrap(), 
+            parse_html_tag(&mut "!-- something\n something else -->".chars(), None).unwrap(), 
             HtmlTag::Comment(" something\n something else ".to_string())
         );
     }
 }
 
-pub fn parse_html_content(chs : &mut std::str::Chars, tag : &str) -> Result<Option<Vec<HtmlContent>>, ParseHtmlError> {
+pub fn parse_html_content(chs : &mut std::str::Chars, tag : &str, parent_weak_rc : Option<Weak<RefCell<HtmlNode>>>) -> Result<Option<Vec<HtmlContent>>, ParseHtmlError> {
     let mut text_content = String::new();
     let mut content : Vec<HtmlContent> = Vec::new();
     while let Some(cur_char) = chs.next() {
@@ -466,7 +501,7 @@ pub fn parse_html_content(chs : &mut std::str::Chars, tag : &str) -> Result<Opti
                 text_content = String::new();
             }
             //Read rest of tag - passing along any errors that were encountered.
-            match parse_html_tag(chs)? {
+            match parse_html_tag(chs, parent_weak_rc.clone())? {
                 HtmlTag::EndTag(end_tag) => {
                     if end_tag != tag {
                         return Err(ParseHtmlError::new(format!("Incorrect end tag found {} but expected {}.", end_tag, tag)));
@@ -478,8 +513,8 @@ pub fn parse_html_content(chs : &mut std::str::Chars, tag : &str) -> Result<Opti
                         return Ok(None);
                     }
                 },
-                HtmlTag::NewTag(node) => {
-                    content.push(HtmlContent::Node(node));
+                HtmlTag::NewTag(node_rc) => {
+                    content.push(HtmlContent::Node(node_rc));
                 },
                 HtmlTag::Comment(comment) => {
                     content.push(HtmlContent::Comment(comment));
@@ -520,9 +555,9 @@ impl FromStr for HtmlDocument {
                     doc.push_content(HtmlContent::Text(buffer));
                     buffer = String::new();
                 }
-                match parse_html_tag(&mut chs)? {
+                match parse_html_tag(&mut chs, None)? {
                     HtmlTag::DocType(t) => doc.doctype = Some(t),
-                    HtmlTag::NewTag(node) =>  doc.push_content(HtmlContent::Node(node)),
+                    HtmlTag::NewTag(node_rc) =>  doc.push_content(HtmlContent::Node(node_rc)),
                     HtmlTag::EndTag(t) => return Err(ParseHtmlError::new(format!("Found end tag {} before opening tag.", t))),
                     HtmlTag::Comment(c) => doc.push_content(HtmlContent::Comment(c)),
                 }
@@ -581,60 +616,89 @@ mod parse_html_document_tests {
         a1_attrs.insert("href".to_owned(), "https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/html5download-demo.html".to_owned());
         let mut a2_attrs = HashMap::new();
         a2_attrs.insert("href".to_owned(), "http://sixrevisions.com/html5/download-attribute/".to_owned());
+        let mut parent_node = Rc::new(RefCell::new(HtmlNode {
+            tag : "html".to_owned(),
+            class : None,
+            id : None,
+            attributes : None,
+            parent : None,
+            contents : None,
+
+        }));
+
+        let mut head_node = Rc::new(RefCell::new(HtmlNode {
+            tag : "head".to_owned(),
+            class : None,
+            id : None,
+            attributes : None,
+            parent : Some(Rc::downgrade(&parent_node)),
+            contents : None,
+        }));
+        head_node.borrow_mut().contents =  Some(vec![
+                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(meta_attrs), contents : None, parent : Some(Rc::downgrade(&head_node))}))),
+                HtmlContent::Text("\n".to_owned()),
+                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode { tag : "title".to_owned(), class : None, id : None, attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())]), parent : Some(Rc::downgrade(&head_node))}))),
+                HtmlContent::Text("\n\n".to_owned()),
+                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(desc_attrs), contents : None, parent : Some(Rc::downgrade(&head_node))}))),
+                HtmlContent::Text("\n".to_owned()),
+                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(auth_attrs), contents : None, parent : Some(Rc::downgrade(&head_node))}))),
+                HtmlContent::Text("\n".to_owned()),
+                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(view_attrs), contents : None, parent : Some(Rc::downgrade(&head_node))}))),
+                HtmlContent::Text("\n".to_owned()),
+                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag : "link".to_owned(), id : None, class : None, attributes : Some(link_attrs), contents : None, parent : Some(Rc::downgrade(&head_node))}))),
+                HtmlContent::Text("\n".to_owned()),
+            ]);
+        let mut body_node = Rc::new(RefCell::new(HtmlNode {
+            tag : "body".to_owned(),
+            class : None,
+            id : None,
+            attributes : None,
+            parent : Some(Rc::downgrade(&parent_node)),
+            contents : None,
+        }));
+        let stacked_node = Rc::new(RefCell::new(HtmlNode{
+            tag : "p".to_owned(),
+            id : None, 
+            class : None, 
+            attributes : None,
+            parent : Some(Rc::downgrade(&body_node)),
+            contents : None,
+        }));
+        stacked_node.borrow_mut().contents = Some(vec![
+                                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a1_attrs), contents : Some(vec![HtmlContent::Text("Go back to the demo".to_owned())]), parent : Some(Rc::downgrade(&stacked_node))}))),
+                                ]);
+        let stacked_node2 = Rc::new(RefCell::new(HtmlNode{
+            tag : "p".to_owned(),
+            id : None, 
+            class : None, 
+            attributes : None,
+            parent : Some(Rc::downgrade(&body_node)),
+            contents : None,
+        }));
+        stacked_node2.borrow_mut().contents = Some(vec![
+                                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a1_attrs), contents : Some(vec![HtmlContent::Text("Read the HTML5 download attribute guide".to_owned())]), parent : Some(Rc::downgrade(&stacked_node2))}))),
+                                ]);
+        body_node.borrow_mut().contents = Some(vec![
+                HtmlContent::Text("\n    \n".to_owned()),
+                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag : "h1".to_owned(), id : None, class : Some(vec!["heading".to_owned()]), attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())]), parent : Some(Rc::downgrade(&body_node))}))),
+                HtmlContent::Text("\n".to_owned()),
+                HtmlContent::Node(Rc::new(RefCell::new(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![HtmlContent::Text("A blank HTML document for testing purposes.".to_owned())]), parent : Some(Rc::downgrade(&body_node))}))),
+                HtmlContent::Text("\n".to_owned()),
+                HtmlContent::Node(stacked_node),
+                HtmlContent::Text("\n".to_owned()),
+                HtmlContent::Node(stacked_node2),
+                HtmlContent::Text("\n\n\n".to_owned()),
+            ]);
+        parent_node.borrow_mut().contents = Some(vec![
+            HtmlContent::Node(head_node),
+            HtmlContent::Text("\n".to_owned()),
+            HtmlContent::Node(body_node),
+        ]);
         let nodes = vec![
             HtmlContent::Text("\n".to_owned()),
             HtmlContent::Comment(" saved from url=(0117)https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/samp/htmldoc.html ".to_owned()),
             HtmlContent::Text("\n".to_owned()),
-            HtmlContent::Node(HtmlNode{
-                tag : "html".to_owned(),
-                class : None,
-                id : None,
-                attributes : None,
-                contents : Some(vec![
-                    HtmlContent::Node(HtmlNode{
-                        tag : "head".to_owned(),
-                        class : None,
-                        id : None,
-                        attributes : None,
-                        contents : Some(vec![
-                            HtmlContent::Node(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(meta_attrs), contents : None}),
-                            HtmlContent::Text("\n".to_owned()),
-                            HtmlContent::Node(HtmlNode { tag : "title".to_owned(), class : None, id : None, attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())])}),
-                            HtmlContent::Text("\n\n".to_owned()),
-                            HtmlContent::Node(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(desc_attrs), contents : None}),
-                            HtmlContent::Text("\n".to_owned()),
-                            HtmlContent::Node(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(auth_attrs), contents : None}),
-                            HtmlContent::Text("\n".to_owned()),
-                            HtmlContent::Node(HtmlNode {tag : "meta".to_owned(), id : None, class : None, attributes : Some(view_attrs), contents : None}),
-                            HtmlContent::Text("\n".to_owned()),
-                            HtmlContent::Node(HtmlNode {tag : "link".to_owned(), id : None, class : None, attributes : Some(link_attrs), contents : None}),
-                            HtmlContent::Text("\n".to_owned()),
-                        ]),
-                    }),
-                    HtmlContent::Text("\n".to_owned()),
-                    HtmlContent::Node(HtmlNode{
-                        tag : "body".to_owned(),
-                        class : None,
-                        id : None,
-                        attributes : None,
-                        contents : Some(vec![
-                            HtmlContent::Text("\n    \n".to_owned()),
-                            HtmlContent::Node(HtmlNode {tag : "h1".to_owned(), id : None, class : Some(vec!["heading".to_owned()]), attributes : None, contents : Some(vec![HtmlContent::Text("A Sample HTML Document (Test File)".to_owned())])}),
-                            HtmlContent::Text("\n".to_owned()),
-                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![HtmlContent::Text("A blank HTML document for testing purposes.".to_owned())])}),
-                            HtmlContent::Text("\n".to_owned()),
-                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![
-                                HtmlContent::Node(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a1_attrs), contents : Some(vec![HtmlContent::Text("Go back to the demo".to_owned())])}),
-                                ])}),
-                            HtmlContent::Text("\n".to_owned()),
-                            HtmlContent::Node(HtmlNode {tag : "p".to_owned(), id : None, class : None, attributes : None, contents : Some(vec![
-                                HtmlContent::Node(HtmlNode {tag:"a".to_owned(), id : None, class : None, attributes : Some(a2_attrs), contents : Some(vec![HtmlContent::Text("Read the HTML5 download attribute guide".to_owned())])}),
-                                ])}),
-                            HtmlContent::Text("\n\n\n".to_owned()),
-                        ]),
-                    }),
-                ]),
-            })
+            HtmlContent::Node(parent_node),
         ];
 
 
@@ -650,7 +714,7 @@ struct HtmlNodeIterator<'a> {
 }
 
 impl <'a> Iterator for HtmlNodeIterator <'a> {
-    type Item = &'a HtmlNode;
+    type Item = Rc<RefCell<HtmlNode>>;
     fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item>
     { 
         match &mut self.content_vec_iter {
@@ -674,8 +738,8 @@ impl <'a> Iterator for HtmlNodeIterator <'a> {
                                 HtmlContent::Comment(_) => (),
                                 HtmlContent::Text(_) => (),
                                 HtmlContent::Node(n) => {
-                                    self.current_content_iter = Some(Box::new(n.iter()));
-                                    return Some(n);          
+                                    self.current_content_iter = Some(Box::new(n.borrow().iter()));
+                                    return Some(n.clone());          
                                 }
                             }
                         }
@@ -711,7 +775,7 @@ struct HtmlDocIterator<'a> {
 }
 
 impl<'a> Iterator for HtmlDocIterator<'a> {
-    type Item = &'a HtmlNode;
+    type Item = Rc<RefCell<HtmlNode>>;
     fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> 
     {
         match &mut self.node_vec_iter {
@@ -735,8 +799,8 @@ impl<'a> Iterator for HtmlDocIterator<'a> {
                                 HtmlContent::Comment(_) => (),
                                 HtmlContent::Text(_) => (),
                                 HtmlContent::Node(n) => {
-                                    self.current_node_iter = Some(n.iter());
-                                    return Some(n);          
+                                    self.current_node_iter = Some(n.borrow().iter());
+                                    return Some(n.clone());          
                                 }
                             }
                         }
@@ -780,7 +844,7 @@ impl HtmlContentSliceIterCreator for [HtmlContent] {
     }
 }
 impl<'a> Iterator for HtmlContentSliceIterator<'a> {
-    type Item = &'a HtmlNode;
+    type Item = Rc<RefCell<HtmlNode>>;
     fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> 
     {
         // check the current node iter then  increment it if needed
@@ -792,8 +856,8 @@ impl<'a> Iterator for HtmlContentSliceIterator<'a> {
                         HtmlContent::Comment(_) => (),
                         HtmlContent::Text(_) => (),
                         HtmlContent::Node(n) => {
-                            self.current_content_iter = Some(n.iter());
-                            return Some(n);          
+                            self.current_content_iter = Some(n.borrow().iter());
+                            return Some(n.clone());          
                         }
                     }
                 }
@@ -815,7 +879,7 @@ impl<'a> Iterator for HtmlContentSliceIterator<'a> {
 }
 
 struct HtmlNodeSliceIterator<'a> {
-    slice_iter : std::slice::Iter<'a, HtmlNode>,
+    slice_iter : std::slice::Iter<'a, Rc<RefCell<HtmlNode>>>,
     current_content_iter : Option<HtmlNodeIterator<'a>>,
 }
 
@@ -823,13 +887,13 @@ trait HtmlNodeSliceIterCreator {
     fn html_iter(&self) -> HtmlNodeSliceIterator;
 }
 
-impl HtmlNodeSliceIterCreator for [HtmlNode] {
+impl HtmlNodeSliceIterCreator for [Rc<RefCell<HtmlNode>>] {
     fn html_iter(&self) -> HtmlNodeSliceIterator {
         HtmlNodeSliceIterator { slice_iter : self.iter(), current_content_iter : None, }
     }
 }
 impl<'a> Iterator for HtmlNodeSliceIterator<'a> {
-    type Item = &'a HtmlNode;
+    type Item = Rc<RefCell<HtmlNode>>;
     fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> 
     {
         // check the current node iter then  increment it if needed
@@ -838,8 +902,8 @@ impl<'a> Iterator for HtmlNodeSliceIterator<'a> {
                 //get next node from the content then set up the current_node_iter and return the node found
                 match self.slice_iter.next() {
                     Some(n) => {
-                            self.current_content_iter = Some(n.iter());
-                            return Some(n);          
+                            self.current_content_iter = Some(n.borrow().iter());
+                            return Some(n.clone());          
                         },
                     None => None,
                 }
@@ -859,7 +923,7 @@ impl<'a> Iterator for HtmlNodeSliceIterator<'a> {
     }
 }
 
-impl HtmlNodeSliceIterCreator for Vec<HtmlNode> {
+impl HtmlNodeSliceIterCreator for Vec<Rc<RefCell<HtmlNode>>> {
     fn html_iter(&self) -> HtmlNodeSliceIterator {
         HtmlNodeSliceIterator { slice_iter : self.iter(), current_content_iter : None, }
     }
@@ -1042,15 +1106,15 @@ trait HtmlSelectorsTrait {
 }
 
 impl HtmlSelectorsTrait for HtmlNode {
-fn matches<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
-fn has_child<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
-fn has_decendant<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
-fn contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
-fn child_contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
-fn decendant_contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
-fn get_text() -> std::string::String { todo!() }
-fn get_child_text() -> std::string::String { todo!() }
-fn get_decendant_text() -> std::string::String { todo!() }
+    fn matches<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+    fn has_child<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+    fn has_decendant<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+    fn contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+    fn child_contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+    fn decendant_contains_text<'a, T : Into<&'a str>>(selector: T) -> bool { todo!() }
+    fn get_text() -> std::string::String { todo!() }
+    fn get_child_text() -> std::string::String { todo!() }
+    fn get_decendant_text() -> std::string::String { todo!() }
 }
 
 
