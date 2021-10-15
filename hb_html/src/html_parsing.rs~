@@ -1,91 +1,3 @@
-mod error;
-use error::{HtmlDocError, ParseHtmlError};
-use std::collections::HashMap;
-
-#[derive(Debug, Clone)]
-pub struct HtmlTag {
-    tag: String,
-    ids: Vec<String>,
-    classes: Vec<String>,
-    attributes: HashMap<String, String>,
-    contents: Vec<HtmlNode>,
-}
-
-impl PartialEq for HtmlTag {
-    fn eq(&self, other: &HtmlTag) -> bool {
-        if self.tag != other.tag {
-            return false;
-        }
-        if self.ids.len() != other.ids.len() {
-            return false;
-        }
-        for id in &self.ids {
-            if !other.ids.contains(id) {
-                return false;
-            }
-        }
-        if self.classes.len() != other.classes.len() {
-            return false;
-        }
-        for class in &self.classes {
-            if !other.classes.contains(class) {
-                return false;
-            }
-        }
-        if self.attributes != other.attributes {
-            return false;
-        }
-        return true;
-    }
-}
-
-impl HtmlTag {
-    fn new<T: Into<String>>(tag: T) -> HtmlTag {
-        HtmlTag {
-            tag: tag.into(),
-            ids: vec![],
-            classes: vec![],
-            contents: vec![],
-            attributes: HashMap::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum HtmlNode {
-    Tag(HtmlTag),
-    Comment(String),
-    Text(String),
-}
-
-#[derive(Debug, Clone)]
-struct HtmlDocument {
-    doctype: String,
-    nodes: Vec<HtmlNode>,
-}
-
-impl HtmlDocument {
-    fn new() -> HtmlDocument {
-        let v: Vec<HtmlNode> = vec![];
-        HtmlDocument {
-            doctype: String::new(),
-            nodes: v,
-        }
-    }
-}
-
-struct HtmlNodeLocation<'a> {
-    path: Vec<(&'a Vec<HtmlNode>, usize)>,
-}
-
-impl<'a> HtmlNodeLocation<'a> {
-    fn new() -> HtmlNodeLocation<'a> {
-        let p: Vec<(&'a Vec<HtmlNode>, usize)> = vec![];
-        HtmlNodeLocation { path: p }
-    }
-}
-
-use std::collections::VecDeque;
 // Read from the iterator until a quoted string or word is found (ignoring leading whitespace) then return the string and the character that ended the string
 // Endings of a single word can be whitespace or >
 fn parse_string(chs: &mut std::str::Chars) -> Result<(String, char), ParseHtmlError> {
@@ -307,13 +219,16 @@ mod parse_iter_tests {
 
 #[derive(Debug, PartialEq)]
 enum ParsedTagType {
-    EndTag(String),  //eg </div>
-    NewTag(HtmlTag), //eg <div class="test">
-    Comment(String), //eg <!-- text --!>
+    EndTag(String),                //eg </div>
+    NewTag(Rc<RefCell<HtmlNode>>), //eg <div class="test">
+    Comment(String),               //eg <!-- text --!>
     DocType(String),
 }
 
-fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseHtmlError> {
+fn parse_html_tag(
+    chs: &mut std::str::Chars,
+    parent_weak_rc: Option<Weak<RefCell<HtmlNode>>>,
+) -> Result<ParsedTagType, ParseHtmlError> {
     // read chars into the buffer until a > or ' ' is found
     let mut buffer = String::with_capacity(50);
     //read first character and determine if this is an end tag
@@ -349,9 +264,13 @@ fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseHtmlE
         return Ok(ParsedTagType::DocType(parse_until_char(chs, '>', false)?));
     }
     let (tag_str, ending) = buffer.split_at(buffer.len() - 1);
-    let tag = tag_str.to_owned();
-    let mut node = HtmlTag::new(tag_str);
+    let mut node_rc = Rc::new(RefCell::new(HtmlNode::new(tag_str)));
+    match parent_weak_rc {
+        Some(weak_rc) => node_rc.borrow_mut().parent = Some(weak_rc.clone()),
+        None => (),
+    }
     if ending != ">" {
+        let mut node = node_rc.borrow_mut();
         //define the some checking closures
         let is_ws_eq_or_gt = |ch: &char| -> bool {
             return ch.is_ascii_whitespace() || *ch == '=' || *ch == '>';
@@ -388,12 +307,20 @@ fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseHtmlE
             //We have 'attr =' now need to read in the value
             let (attr_value_string, attr_value_ending) = parse_string(chs)?;
             if attr_str == "class" {
-                node.classes = parse_attibute_value(attr_value_string);
+                node.class = Some(parse_attibute_value(attr_value_string));
             } else if attr_str == "id" {
-                node.ids = parse_attibute_value(attr_value_string);
+                node.id = Some(parse_attibute_value(attr_value_string));
             } else {
-                node.attributes
-                    .insert(attr_str.to_string(), attr_value_string);
+                match &mut node.attributes {
+                    Some(attr_map) => {
+                        attr_map.insert(attr_str.to_string(), attr_value_string);
+                    }
+                    None => {
+                        let mut attr_map = HashMap::new();
+                        attr_map.insert(attr_str.to_string(), attr_value_string);
+                        node.attributes = Some(attr_map);
+                    }
+                }
             }
             if attr_value_ending == '>' {
                 break;
@@ -401,27 +328,30 @@ fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseHtmlE
         }
     }
     //Return the node without content if it is a singleton tag
+    let tag = node_rc.borrow().tag.to_owned();
     match tag.as_str() {
-        "area" => return Ok(ParsedTagType::NewTag(node)),
-        "base" => return Ok(ParsedTagType::NewTag(node)),
-        "br" => return Ok(ParsedTagType::NewTag(node)),
-        "col" => return Ok(ParsedTagType::NewTag(node)),
-        "command" => return Ok(ParsedTagType::NewTag(node)),
-        "embed" => return Ok(ParsedTagType::NewTag(node)),
-        "hr" => return Ok(ParsedTagType::NewTag(node)),
-        "img" => return Ok(ParsedTagType::NewTag(node)),
-        "input" => return Ok(ParsedTagType::NewTag(node)),
-        "keygen" => return Ok(ParsedTagType::NewTag(node)),
-        "link" => return Ok(ParsedTagType::NewTag(node)),
-        "meta" => return Ok(ParsedTagType::NewTag(node)),
-        "param" => return Ok(ParsedTagType::NewTag(node)),
-        "source" => return Ok(ParsedTagType::NewTag(node)),
-        "track" => return Ok(ParsedTagType::NewTag(node)),
-        "wbr" => return Ok(ParsedTagType::NewTag(node)),
-        _ => (),
+        "area" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "base" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "br" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "col" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "command" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "embed" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "hr" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "img" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "input" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "keygen" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "link" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "meta" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "param" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "source" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "track" => return Ok(ParsedTagType::NewTag(node_rc)),
+        "wbr" => return Ok(ParsedTagType::NewTag(node_rc)),
+        _ => {
+            node_rc.borrow_mut().contents =
+                parse_html_content(chs, tag.as_str(), Some(Rc::downgrade(&node_rc)))?;
+            Ok(ParsedTagType::NewTag(node_rc))
+        }
     }
-    node.contents = parse_html_content(chs, tag)?;
-    Ok(ParsedTagType::NewTag(node))
 }
 #[cfg(test)]
 mod parse_html_tag_tests {
@@ -431,34 +361,103 @@ mod parse_html_tag_tests {
     #[test]
     fn parse_html_start_tag_test() {
         assert_eq!(
-            parse_html_tag(&mut "div></div>".chars()).unwrap(),
-            ParsedTagType::NewTag(HtmlTag::new("div"))
+            parse_html_tag(&mut "div></div>".chars(), None).unwrap(),
+            ParsedTagType::NewTag(Rc::new(RefCell::new(HtmlNode {
+                tag: "div".to_string(),
+                class: None,
+                id: None,
+                attributes: None,
+                contents: None,
+                parent: None
+            })))
         );
-        let mut tag = HtmlTag::new("a");
-        tag.classes.push("class1".to_string());
-        tag.ids.push("id1".to_string());
-        tag.contents
-            .push(HtmlNode::Text("Some Content".to_string()));
-        tag.attributes
-            .insert("other_attr".to_string(), "something".to_string());
+        let node_rc = Rc::new(RefCell::new(HtmlNode::new("a")));
+        assert_eq!(
+            parse_html_tag(&mut "div></div>".chars(), Some(Rc::downgrade(&node_rc))).unwrap(),
+            ParsedTagType::NewTag(Rc::new(RefCell::new(HtmlNode {
+                tag: "div".to_string(),
+                class: None,
+                id: None,
+                attributes: None,
+                contents: None,
+                parent: Some(Rc::downgrade(&node_rc))
+            })))
+        );
         assert_eq!(
             parse_html_tag(
-                &mut "a class=\"class1\" id = \"id1\" other_attr=something>Some Content</a>"
-                    .chars()
+                &mut "div  class=\"class1\">Some Content</div>".chars(),
+                None
             )
             .unwrap(),
-            ParsedTagType::NewTag(tag)
+            ParsedTagType::NewTag(Rc::new(RefCell::new(HtmlNode {
+                tag: "div".to_string(),
+                class: Some(vec!["class1".to_string()]),
+                id: None,
+                attributes: None,
+                contents: Some(vec![HtmlContent::Text("Some Content".to_owned())]),
+                parent: None
+            })))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "div  class=\"class1\" ></div>".chars(), None).unwrap(),
+            ParsedTagType::NewTag(Rc::new(RefCell::new(HtmlNode {
+                tag: "div".to_string(),
+                class: Some(vec!["class1".to_string()]),
+                id: None,
+                attributes: None,
+                contents: None,
+                parent: None
+            })))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "a class=\"class1\" id = \"id1\"></a>".chars(), None).unwrap(),
+            ParsedTagType::NewTag(Rc::new(RefCell::new(HtmlNode {
+                tag: "a".to_string(),
+                class: Some(vec!["class1".to_string()]),
+                id: Some(vec!["id1".to_string()]),
+                attributes: None,
+                contents: None,
+                parent: None
+            })))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "a class=\"class1\" id = \"id1\" ></a>".chars(), None).unwrap(),
+            ParsedTagType::NewTag(Rc::new(RefCell::new(HtmlNode {
+                tag: "a".to_string(),
+                class: Some(vec!["class1".to_string()]),
+                id: Some(vec!["id1".to_string()]),
+                attributes: None,
+                contents: None,
+                parent: None
+            })))
+        );
+        let mut map = HashMap::new();
+        map.insert("other_attr".to_string(), "something".to_string());
+        assert_eq!(
+            parse_html_tag(
+                &mut "a class=\"class1\" other_attr=something></a>".chars(),
+                None
+            )
+            .unwrap(),
+            ParsedTagType::NewTag(Rc::new(RefCell::new(HtmlNode {
+                tag: "a".to_string(),
+                class: Some(vec!["class1".to_string()]),
+                id: None,
+                attributes: Some(map),
+                contents: None,
+                parent: None
+            })))
         );
     }
 
     #[test]
     fn parse_html_end_tag_test() {
         assert_eq!(
-            parse_html_tag(&mut "/div>".chars()).unwrap(),
+            parse_html_tag(&mut "/div>".chars(), None).unwrap(),
             ParsedTagType::EndTag("div".to_string())
         );
         assert_eq!(
-            parse_html_tag(&mut "/div >".chars()).unwrap(),
+            parse_html_tag(&mut "/div >".chars(), None).unwrap(),
             ParsedTagType::EndTag("div".to_string())
         );
     }
@@ -466,11 +465,11 @@ mod parse_html_tag_tests {
     #[test]
     fn parse_html_comment_tag_test() {
         assert_eq!(
-            parse_html_tag(&mut "!-- something -->".chars()).unwrap(),
+            parse_html_tag(&mut "!-- something -->".chars(), None).unwrap(),
             ParsedTagType::Comment(" something ".to_string())
         );
         assert_eq!(
-            parse_html_tag(&mut "!-- something\n something else -->".chars()).unwrap(),
+            parse_html_tag(&mut "!-- something\n something else -->".chars(), None).unwrap(),
             ParsedTagType::Comment(" something\n something else ".to_string())
         );
     }
@@ -478,18 +477,19 @@ mod parse_html_tag_tests {
 
 pub fn parse_html_content(
     chs: &mut std::str::Chars,
-    tag: String,
-) -> Result<Vec<HtmlNode>, ParseHtmlError> {
+    tag: &str,
+    parent_weak_rc: Option<Weak<RefCell<HtmlNode>>>,
+) -> Result<Option<Vec<HtmlContent>>, ParseHtmlError> {
     let mut text_content = String::new();
-    let mut content: Vec<HtmlNode> = Vec::new();
+    let mut content: Vec<HtmlContent> = Vec::new();
     while let Some(cur_char) = chs.next() {
         if cur_char == '<' {
             if text_content.len() > 0 {
-                content.push(HtmlNode::Text(text_content));
+                content.push(HtmlContent::Text(text_content));
                 text_content = String::new();
             }
             //Read rest of tag - passing along any errors that were encountered.
-            match parse_html_tag(chs)? {
+            match parse_html_tag(chs, parent_weak_rc.clone())? {
                 ParsedTagType::EndTag(end_tag) => {
                     if end_tag != tag {
                         return Err(ParseHtmlError::new(format!(
@@ -499,16 +499,16 @@ pub fn parse_html_content(
                     }
                     //Got the correct end tag
                     if content.len() > 0 {
-                        return Ok(content);
+                        return Ok(Some(content));
                     } else {
-                        return Ok(vec![]);
+                        return Ok(None);
                     }
                 }
                 ParsedTagType::NewTag(node_rc) => {
-                    content.push(HtmlNode::Tag(node_rc));
+                    content.push(HtmlContent::Node(node_rc));
                 }
                 ParsedTagType::Comment(comment) => {
-                    content.push(HtmlNode::Comment(comment));
+                    content.push(HtmlContent::Comment(comment));
                 }
                 ParsedTagType::DocType(t) => {
                     return Err(ParseHtmlError::new(format!(
