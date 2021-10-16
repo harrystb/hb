@@ -1,8 +1,0 @@
-mod error;
-mod html_node;
-
-#[derive(Debug, Clone)]
-struct HtmlDocument {
-    doctype: String,
-    nodes: Vec<HtmlNode>,
-}
