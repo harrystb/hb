@@ -1,6 +1,7 @@
 mod error;
-use error::{HtmlDocError, ParseHtmlError};
-use std::collections::HashMap;
+use error::{HtmlDocError, HtmlMatchError, ParseHtmlError};
+use std::collections::{HashMap, VecDeque};
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct HtmlTag {
@@ -51,7 +52,7 @@ impl HtmlTag {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum HtmlNode {
     Tag(HtmlTag),
     Comment(String),
@@ -74,18 +75,6 @@ impl HtmlDocument {
     }
 }
 
-struct HtmlNodeLocation<'a> {
-    path: Vec<(&'a Vec<HtmlNode>, usize)>,
-}
-
-impl<'a> HtmlNodeLocation<'a> {
-    fn new() -> HtmlNodeLocation<'a> {
-        let p: Vec<(&'a Vec<HtmlNode>, usize)> = vec![];
-        HtmlNodeLocation { path: p }
-    }
-}
-
-use std::collections::VecDeque;
 // Read from the iterator until a quoted string or word is found (ignoring leading whitespace) then return the string and the character that ended the string
 // Endings of a single word can be whitespace or >
 fn parse_string(chs: &mut std::str::Chars) -> Result<(String, char), ParseHtmlError> {
@@ -526,4 +515,258 @@ pub fn parse_html_content(
         "End of file without finding tag {}.",
         tag
     )));
+}
+
+impl FromStr for HtmlDocument {
+    type Err = ParseHtmlError;
+    fn from_str(html_str: &str) -> Result<Self, <Self as std::str::FromStr>::Err> {
+        let mut doc = HtmlDocument::new();
+        let mut chs = html_str.chars();
+        let mut buffer = String::new();
+        while let Some(ch) = chs.next() {
+            if ch == '<' {
+                if buffer.len() > 0 {
+                    doc.nodes.push(HtmlNode::Text(buffer));
+                    buffer = String::new();
+                }
+                match parse_html_tag(&mut chs)? {
+                    ParsedTagType::EndTag(t) => {
+                        return Err(ParseHtmlError::new(format!(
+                            "Found end tag {} before start tag.",
+                            t
+                        )))
+                    }
+                    ParsedTagType::NewTag(tag) => doc.nodes.push(HtmlNode::Tag(tag)),
+                    ParsedTagType::Comment(c) => doc.nodes.push(HtmlNode::Comment(c)),
+                    ParsedTagType::DocType(doctype) => {
+                        if doc.doctype.len() > 0 {
+                            //it was already defined..
+                            return Err(ParseHtmlError::new(format!(
+                                "Doctype was defined twice, first {} and second {}",
+                                doc.doctype, doctype,
+                            )));
+                        }
+                        doc.doctype = doctype;
+                    }
+                }
+            }
+        }
+        Ok(doc)
+    }
+}
+
+#[cfg(test)]
+mod parse_html_document_tests {
+    use super::*;
+
+    #[test]
+    fn parse_test_document() {
+        let test_html = r#"<!DOCTYPE html>
+<!-- saved from url=(0117)https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/samp/htmldoc.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>A Sample HTML Document (Test File)</title>
+<meta name="description" content="A blank HTML document for testing purposes.">
+<meta name="author" content="Six Revisions">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="http://sixrevisions.com/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    
+<h1 class=heading>A Sample HTML Document (Test File)</h1>
+<p>A blank HTML document for testing purposes.</p>
+<p><a href="https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/html5download-demo.html">Go back to the demo</a></p>
+<p><a href="http://sixrevisions.com/html5/download-attribute/">Read the HTML5 download attribute guide</a></p>
+</body></html>"#;
+        let doc_from_str = HtmlDocument::from_str(test_html).unwrap();
+        assert_eq!(doc_from_str.doctype, "html".to_owned());
+        let mut doc = HtmlDocument::new();
+        doc.nodes.push(HtmlNode::Comment(" saved from url=(0117)https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/samp/htmldoc.html ".to_string()));
+
+        let mut html_tag = HtmlTag::new("html");
+        let mut head = HtmlTag::new("head");
+        let mut meta = HtmlTag::new("meta");
+        meta.attributes
+            .insert("http-equiv".to_owned(), "Content-Type".to_string());
+        meta.attributes
+            .insert("content".to_owned(), "text/html; charset=UTF-8".to_string());
+        head.contents.push(HtmlNode::Tag(meta));
+        head.contents.push(HtmlNode::Text("\n".to_string()));
+
+        let mut title = HtmlTag::new("title");
+        title.contents.push(HtmlNode::Text(
+            "A Sample HTML Document (Test File)".to_string(),
+        ));
+        head.contents.push(HtmlNode::Tag(title));
+        head.contents.push(HtmlNode::Text("\n".to_string()));
+
+        let mut meta = HtmlTag::new("meta");
+        meta.attributes
+            .insert("name".to_string(), "description".to_string());
+        meta.attributes.insert(
+            "content".to_string(),
+            "A black HTML document for testing purposes.".to_string(),
+        );
+        head.contents.push(HtmlNode::Tag(meta));
+        head.contents.push(HtmlNode::Text("\n".to_string()));
+        let mut meta = HtmlTag::new("meta");
+        meta.attributes
+            .insert("name".to_owned(), "author".to_string());
+        meta.attributes
+            .insert("content".to_owned(), "Six Revisions".to_string());
+        head.contents.push(HtmlNode::Tag(meta));
+        head.contents.push(HtmlNode::Text("\n".to_string()));
+        let mut meta = HtmlTag::new("meta");
+        meta.attributes
+            .insert("name".to_owned(), "viewport".to_string());
+        meta.attributes.insert(
+            "content".to_owned(),
+            "width=device-width, initial-scale=1".to_string(),
+        );
+        head.contents.push(HtmlNode::Tag(meta));
+        head.contents.push(HtmlNode::Text("\n".to_string()));
+        let mut link = HtmlTag::new("link");
+        link.attributes
+            .insert("rel".to_string(), "icon".to_string());
+        link.attributes.insert(
+            "href".to_string(),
+            "http://sixrevisions.com/favicon.ico".to_string(),
+        );
+        link.attributes
+            .insert("type".to_string(), "image/x-icon".to_string());
+        head.contents.push(HtmlNode::Tag(link));
+        head.contents.push(HtmlNode::Text("\n".to_string()));
+
+        html_tag.contents.push(HtmlNode::Tag(head));
+        html_tag.contents.push(HtmlNode::Text("\n".to_string()));
+
+        let mut body = HtmlTag::new("body");
+        body.contents.push(HtmlNode::Text("\n    \n".to_string()));
+        let mut h1 = HtmlTag::new("h1");
+        h1.classes.push("heading".to_string());
+        h1.contents.push(HtmlNode::Text(
+            "A Sample HTML Document (Test File)".to_string(),
+        ));
+        body.contents.push(HtmlNode::Tag(h1));
+        body.contents.push(HtmlNode::Text("\n".to_string()));
+        let mut p = HtmlTag::new("p");
+        p.contents.push(HtmlNode::Text(
+            "A black HTML document for testing purposes.".to_string(),
+        ));
+        body.contents.push(HtmlNode::Tag(p));
+        body.contents.push(HtmlNode::Text("\n".to_string()));
+        let mut p = HtmlTag::new("p");
+        let mut a = HtmlTag::new("a");
+        a.attributes.insert("href".to_string(), "https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/html5download-demo.html".to_string());
+        a.contents
+            .push(HtmlNode::Text("Go back to the demo".to_string()));
+        p.contents.push(HtmlNode::Tag(a));
+        body.contents.push(HtmlNode::Tag(p));
+        body.contents.push(HtmlNode::Text("\n".to_string()));
+        let mut p = HtmlTag::new("p");
+        let mut a = HtmlTag::new("a");
+        a.attributes.insert(
+            "href".to_string(),
+            "http://sixrevisions.com/html5/download-attribute/".to_string(),
+        );
+        a.contents.push(HtmlNode::Text(
+            "Read the HTML5 download attribute guide".to_string(),
+        ));
+        p.contents.push(HtmlNode::Tag(a));
+        body.contents.push(HtmlNode::Tag(p));
+        body.contents.push(HtmlNode::Text("\n".to_string()));
+        html_tag.contents.push(HtmlNode::Tag(body));
+        doc.nodes.push(HtmlNode::Tag(html_tag));
+
+        assert_eq!(doc.nodes, doc_from_str.nodes);
+    }
+}
+
+struct HtmlNodeLocation<'a> {
+    path: Vec<(&'a Vec<HtmlNode>, usize)>,
+}
+
+impl<'a> HtmlNodeLocation<'a> {
+    fn new() -> HtmlNodeLocation<'a> {
+        let p: Vec<(&'a Vec<HtmlNode>, usize)> = vec![];
+        HtmlNodeLocation { path: p }
+    }
+}
+
+impl<'a> HtmlTag {
+    fn select_first(&'a self, tag: &str) -> Option<Vec<(&'a Vec<HtmlNode>, usize)>> {
+        for i in 0..self.contents.len() {
+            match &self.contents[i] {
+                HtmlNode::Tag(tag_node) => {
+                    if tag_node.tag == tag {
+                        return Some(vec![(&self.contents, i)]);
+                    }
+                    match tag_node.select_first(tag) {
+                        Some(decendant_path) => {
+                            let mut path = vec![(&self.contents, i)];
+                            path.extend_from_slice(&decendant_path);
+                            return Some(path);
+                        }
+                        None => (),
+                    }
+                }
+                HtmlNode::Comment(_) => (),
+                HtmlNode::Text(_) => (),
+            }
+        }
+        None
+    }
+}
+
+impl HtmlDocument {
+    fn select_first(&self, tag: &str) -> Option<HtmlNodeLocation> {
+        for i in 0..self.nodes.len() {
+            match &self.nodes[i] {
+                HtmlNode::Tag(tag_node) => {
+                    if tag_node.tag == tag {
+                        let mut location = HtmlNodeLocation::new();
+                        location.path.push((&self.nodes, i));
+                        return Some(location);
+                    }
+                    match tag_node.select_first(tag) {
+                        Some(decendant_path) => {
+                            let mut location = HtmlNodeLocation::new();
+                            location.path.push((&self.nodes, i));
+                            location.path.extend_from_slice(&decendant_path);
+                            return Some(location);
+                        }
+                        None => (),
+                    }
+                }
+                HtmlNode::Comment(_) => (),
+                HtmlNode::Text(_) => (),
+            }
+        }
+        None
+    }
+}
+
+impl<'a> HtmlNodeLocation<'a> {
+    fn select_first(&mut self, tag: &str) -> Result<(), HtmlMatchError> {
+        if self.path.len() == 0 {
+            return Err(HtmlMatchError::with_msg(
+                "Attempted to select from empty location.",
+            ));
+        }
+        let last_path = self.path.last().unwrap();
+        match &last_path.0[last_path.1] {
+            HtmlNode::Tag(tag_node) => match tag_node.select_first(tag) {
+                Some(decendant_path) => {
+                    self.path.extend_from_slice(&decendant_path);
+                    return Ok(());
+                }
+                None => (),
+            },
+            HtmlNode::Comment(_) => (),
+            HtmlNode::Text(_) => (),
+        }
+        Err(HtmlMatchError::with_msg(format!(
+            "No matches found for {}",
+            tag
+        )))
+    }
 }
