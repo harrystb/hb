@@ -681,92 +681,126 @@ mod parse_html_document_tests {
     }
 }
 
-struct HtmlNodeLocation<'a> {
+/// An object which points to the a node in the HTML tree including the path to
+/// the node to allow looking at parent nodes.
+struct HtmlQueryResult<'a> {
+    /// The path down the tree.
+    /// The node is found by dereferencing the last element of the vector
     path: Vec<(&'a Vec<HtmlNode>, usize)>,
 }
 
-impl<'a> HtmlNodeLocation<'a> {
-    fn new() -> HtmlNodeLocation<'a> {
-        let p: Vec<(&'a Vec<HtmlNode>, usize)> = vec![];
-        HtmlNodeLocation { path: p }
-    }
-}
-
-impl<'a> HtmlTag {
-    fn select_first(&'a self, tag: &str) -> Option<Vec<(&'a Vec<HtmlNode>, usize)>> {
-        for i in 0..self.contents.len() {
-            match &self.contents[i] {
-                HtmlNode::Tag(tag_node) => {
-                    if tag_node.tag == tag {
-                        return Some(vec![(&self.contents, i)]);
-                    }
-                    match tag_node.select_first(tag) {
-                        Some(decendant_path) => {
-                            let mut path = vec![(&self.contents, i)];
-                            path.extend_from_slice(&decendant_path);
-                            return Some(path);
-                        }
-                        None => (),
-                    }
-                }
-                HtmlNode::Comment(_) => (),
-                HtmlNode::Text(_) => (),
-            }
-        }
-        None
-    }
-}
-
-impl HtmlDocument {
-    fn select_first(&self, tag: &str) -> Option<HtmlNodeLocation> {
-        for i in 0..self.nodes.len() {
-            match &self.nodes[i] {
-                HtmlNode::Tag(tag_node) => {
-                    if tag_node.tag == tag {
-                        let mut location = HtmlNodeLocation::new();
-                        location.path.push((&self.nodes, i));
-                        return Some(location);
-                    }
-                    match tag_node.select_first(tag) {
-                        Some(decendant_path) => {
-                            let mut location = HtmlNodeLocation::new();
-                            location.path.push((&self.nodes, i));
-                            location.path.extend_from_slice(&decendant_path);
-                            return Some(location);
-                        }
-                        None => (),
-                    }
-                }
-                HtmlNode::Comment(_) => (),
-                HtmlNode::Text(_) => (),
-            }
-        }
-        None
-    }
-}
-
-impl<'a> HtmlNodeLocation<'a> {
-    fn select_first(&mut self, tag: &str) -> Result<(), HtmlMatchError> {
+impl<'a> HtmlQueryResult<'a> {
+    /// Attempts to get the node pointed to by the path.
+    /// Returns None if the path is empty.
+    fn get_node(&self) -> Option<&HtmlNode> {
         if self.path.len() == 0 {
-            return Err(HtmlMatchError::with_msg(
-                "Attempted to select from empty location.",
-            ));
+            return None;
         }
-        let last_path = self.path.last().unwrap();
-        match &last_path.0[last_path.1] {
-            HtmlNode::Tag(tag_node) => match tag_node.select_first(tag) {
-                Some(decendant_path) => {
-                    self.path.extend_from_slice(&decendant_path);
-                    return Ok(());
-                }
-                None => (),
-            },
-            HtmlNode::Comment(_) => (),
-            HtmlNode::Text(_) => (),
+        let path_point = &self.path[self.path.len() - 1];
+        return Some(&path_point.0[path_point.1]);
+    }
+
+    /// Attempts to get the parent to the node pointed to by the path.
+    /// Returns None if the path is empty or is only the single node on the path.
+    fn get_parent_node(&self) -> Option<&HtmlNode> {
+        if self.path.len() <= 1 {
+            return None;
         }
-        Err(HtmlMatchError::with_msg(format!(
-            "No matches found for {}",
-            tag
-        )))
+        let path_point = &self.path[self.path.len() - 2];
+        return Some(&path_point.0[path_point.1]);
+    }
+
+    /// Attempts to get the node from the index position on the path.
+    /// Returns None if the index is out of range of the path.
+    fn get_node_from_index(&self, index: usize) -> Option<&HtmlNode> {
+        if index >= self.path.len() {
+            return None;
+        }
+        let path_point = &self.path[index];
+        return Some(&path_point.0[path_point.1]);
+    }
+
+    /// Creates an iterator that walks the path from the bottom to the top.
+    fn get_path_iter(&self) -> HtmlQueryResultIter {
+        HtmlQueryResultIter::new(self)
+    }
+}
+
+/// Iterator that walks along the path of the HtmlQueryResult from the bottom to
+/// the top.
+struct HtmlQueryResultIter<'a> {
+    query_result: &'a HtmlQueryResult<'a>,
+    previous_index: usize,
+}
+impl<'a> HtmlQueryResultIter<'a> {
+    /// Create a HtmlQueryResultIter from a HtmlQueryResult reference.
+    fn new(query_result: &'a HtmlQueryResult) -> HtmlQueryResultIter<'a> {
+        HtmlQueryResultIter {
+            query_result: query_result,
+            previous_index: query_result.path.len(),
+        }
+    }
+}
+impl<'a> Iterator for HtmlQueryResultIter<'a> {
+    type Item = &'a HtmlNode;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.previous_index == 0 {
+            return None;
+        }
+        self.previous_index = self.previous_index - 1;
+        self.query_result.get_node_from_index(self.previous_index)
+    }
+}
+
+/// Allows searching through HTML documents using various search functions.
+/// Results are stores as HtmlQueryResults.
+///
+/// Multiple searches are allowed on a single HtmlQuery object, and each
+/// subsequent search will search from the existing results.
+/// For example:
+/// ```
+/// let query = HtmlQuery::new(&html_doc.nodes);
+/// query.find_with_tag("div").find_with_tag("p")
+/// ```
+/// This will find the div tags, then find the p tags from within the div tags.
+struct HtmlQuery<'a> {
+    root: &'a Vec<HtmlNode>,
+    results: Vec<HtmlQueryResult<'a>>,
+}
+
+impl<'a> HtmlQuery<'a> {
+    /// Creates a new HtmlQuery to search from the root nodes down.
+    ///
+    /// # Arguments
+    ///
+    /// * `root` - A reference to the vector of nodes that the Query object
+    ///            begins searching from.
+    fn new(root: &'a Vec<HtmlNode>) -> HtmlQuery<'a> {
+        HtmlQuery {
+            root: root,
+            results: vec![],
+        }
+    }
+
+    ///
+    fn find_with_tag(&self, tag: &str) -> &HtmlQuery {
+        todo!();
+    }
+}
+struct HtmlQueryResultMut<'a> {
+    path: Vec<(&'a mut Vec<HtmlNode>, usize)>,
+}
+
+struct HtmlQueryMut<'a> {
+    root: &'a mut Vec<HtmlNode>,
+    results: Vec<HtmlQueryResultMut<'a>>,
+}
+
+impl<'a> HtmlQueryMut<'a> {
+    fn new(root: &'a mut Vec<HtmlNode>) -> HtmlQueryMut<'a> {
+        HtmlQueryMut {
+            root: root,
+            results: vec![],
+        }
     }
 }

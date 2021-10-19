@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["lib"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.55.0/core/marker/trait.Send.html\" title=\"trait core::marker::Send\">Send</a> for <a class=\"struct\" href=\"lib/struct.HtmlTag.html\" title=\"struct lib::HtmlTag\">HtmlTag</a>","synthetic":true,"types":["lib::HtmlTag"]},{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.55.0/core/marker/trait.Send.html\" title=\"trait core::marker::Send\">Send</a> for <a class=\"enum\" href=\"lib/enum.HtmlNode.html\" title=\"enum lib::HtmlNode\">HtmlNode</a>","synthetic":true,"types":["lib::HtmlNode"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
