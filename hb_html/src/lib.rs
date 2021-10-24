@@ -1,15 +1,44 @@
+//! Crate to parse and extract data from HTML documents.
+
 mod error;
 use error::{HtmlDocError, HtmlMatchError, ParseHtmlError};
 use std::collections::{HashMap, VecDeque};
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
+/// Represents a HTML Tag including both attributes and contents.
+/// Contents can include HTML comments, HTML tags and text.
+/// The contents is stored as a [`HtmlNode`].
+///
+/// # Example:
+///
+/// This HTML tag
+/// ```
+/// <div class="heading" id=top other="3">This is an example</div>
+/// ```
+///
+/// would be represented by
+///
+/// ```
+/// HtmlTag{
+///    tag : "div",
+///    ids : ["top"],
+///    classes : ["heading"],
+///    attributes : {"other" : "3"},
+///    contents : [HtmlNode::Text("This is an example")],
+/// }
+/// ```
 pub struct HtmlTag {
-    tag: String,
-    ids: Vec<String>,
-    classes: Vec<String>,
-    attributes: HashMap<String, String>,
-    contents: Vec<HtmlNode>,
+    /// HTML tag name
+    pub tag: String,
+    /// List of Ids from the attribute id="" in the HTML tag
+    pub ids: Vec<String>,
+    /// List of Classes from the attribute class="" in the HTML tag
+    pub classes: Vec<String>,
+    /// All other attributes from the HTML tag.
+    pub attributes: HashMap<String, String>,
+    /// The contents of the HTML tag, stores as [`HtmlNode`] objects.
+    pub contents: Vec<HtmlNode>,
 }
 
 impl PartialEq for HtmlTag {
@@ -41,7 +70,12 @@ impl PartialEq for HtmlTag {
 }
 
 impl HtmlTag {
-    fn new<T: Into<String>>(tag: T) -> HtmlTag {
+    /// Create an empty [`HtmlTag`] with the tag name provided.
+    ///
+    /// # Arguments
+    ///
+    /// * `tag` - The tag name. Can be anything that implements Into\<String\>
+    pub fn new<T: Into<String>>(tag: T) -> HtmlTag {
         HtmlTag {
             tag: tag.into(),
             ids: vec![],
@@ -53,19 +87,56 @@ impl HtmlTag {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Represents the different types of content that can be found inside HTML
+/// tags.
 pub enum HtmlNode {
+    /// A HTML tag stored as a [`HtmlTag`].
     Tag(HtmlTag),
+    /// A HTML comment such as \<!-- This is a comment --!\>
     Comment(String),
+    /// Text content.
     Text(String),
 }
 
 #[derive(Debug, Clone)]
+/// Represents a whole HTML document.
+///
+/// # Example
+///
+/// This is a basic HTML document
+/// ```
+/// <!DOCTYPE html>
+/// <!-- An example HTML Document -->
+/// <html><head>
+/// <title>A HTML Document (Test File)</title>
+/// </head>
+/// <body>
+/// <h1 class=heading>A HTML Document (Test File)</h1>
+/// <p>A blank HTML document.</p>
+/// </body></html>"
+/// ```
+///
+/// This be represented by
+///
+/// ```
+/// HtmlDocument {
+/// doctype : "html",
+/// nodes : [
+///    HtmlNode::Comment("An example HTML Document"),
+///    HtmlNode::Tag(HtmlTag { tag : "html" ... })
+///    ] ,
+/// }
+/// ```
 struct HtmlDocument {
+    /// The doctype string from the document, usually "html".
     doctype: String,
+    /// Representation of all HTML tags, comments or text that appears at the
+    /// top level in the document.
     nodes: Vec<HtmlNode>,
 }
 
 impl HtmlDocument {
+    /// Creates a empty [`HtmlDocument`].
     fn new() -> HtmlDocument {
         let v: Vec<HtmlNode> = vec![];
         HtmlDocument {
