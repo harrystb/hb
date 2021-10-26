@@ -1,7 +1,6 @@
 use crate::error::ParseHtmlError;
-use crate::objects::{HtmlDocument, HtmlNode, HtmlTag};
+use crate::objects::{HtmlNode, HtmlTag};
 use std::collections::VecDeque;
-use std::str::FromStr;
 
 // Read from the iterator until a quoted string or word is found (ignoring leading whitespace) then return the string and the character that ended the string
 // Endings of a single word can be whitespace or >
@@ -448,6 +447,7 @@ pub fn parse_html_content(
 #[cfg(test)]
 mod parse_html_document_tests {
     use super::*;
+    use crate::objects::HtmlDocument;
 
     #[test]
     fn parse_test_document() {
@@ -467,7 +467,7 @@ mod parse_html_document_tests {
 <p><a href="https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/html5download-demo.html">Go back to the demo</a></p>
 <p><a href="http://sixrevisions.com/html5/download-attribute/">Read the HTML5 download attribute guide</a></p>
 </body></html>"#;
-        let doc_from_str = HtmlDocument::from_str(test_html).unwrap();
+        let doc_from_str = test_html.parse::<HtmlDocument>().unwrap();
         assert_eq!(doc_from_str.doctype, "html".to_owned());
         let mut doc = HtmlDocument::new();
         doc.nodes.push(HtmlNode::Comment(" saved from url=(0117)https://www.webfx.com/blog/images/assets/cdn.sixrevisions.com/0435-01_html5_download_attribute_demo/samp/htmldoc.html ".to_string()));
