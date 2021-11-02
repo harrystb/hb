@@ -75,7 +75,8 @@ impl<'a> Iterator for HtmlQueryResultIter<'a> {
 /// Results are stores as HtmlQueryResults.
 ///
 /// Multiple searches are allowed on a single HtmlQuery object, and each
-/// subsequent search will search from the existing results.
+/// subsequent search will search from the existing results rather that 
+/// the top level of the HTML Document.
 ///
 /// # Example
 ///
@@ -122,6 +123,13 @@ impl<'a> HtmlQuery<'a> {
     pub fn find_with_tag(&self, tag: &str) -> &HtmlQuery {
         todo!();
     }
+
+    /// Search through either the root HTML nodes if there are no results stored, 
+    /// otherwise search through the current results.
+    pub fn find(&self, tag: &str) -> &HtmlQuery {
+        todo!();
+    }
+
 }
 pub struct HtmlQueryResultMut<'a> {
     pub path: Vec<(&'a mut Vec<HtmlNode>, usize)>,

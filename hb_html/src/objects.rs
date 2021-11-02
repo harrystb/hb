@@ -206,8 +206,14 @@ impl HtmlDocument {
         }
     }
 
+    /// Creates a new [`HtmlQuery`] from this [`HtmlDocument`]
     pub fn new_query(&self) -> HtmlQuery {
         HtmlQuery::new(&self.nodes)
+    }
+
+    pub fn find<T: Into<&str>(&self, selector : T) -> HtmlQuery {
+        let mut query = self.new_query();
+        query.find(selector);
     }
 }
 
