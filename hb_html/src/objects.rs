@@ -1,6 +1,6 @@
 use crate::error::ParseHtmlError;
 use crate::parsing::{parse_html_tag, ParsedTagType};
-use crate::querying::HtmlQuery;
+use crate::querying::{CSSMatchable, HtmlQuery, HtmlQueryable};
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -102,6 +102,7 @@ impl HtmlTag {
         }
     }
 }
+
 impl FromStr for HtmlTag {
     type Err = ParseHtmlError;
     fn from_str(html_str: &str) -> Result<Self, <Self as std::str::FromStr>::Err> {
@@ -168,6 +169,18 @@ pub enum HtmlNode {
     Text(String),
 }
 
+impl HtmlQueryable for Vec<HtmlNode> {
+    fn query(&self) -> HtmlQuery {
+        HtmlQuery::new(self)
+    }
+}
+
+impl CSSMatchable for HtmlNode {
+    fn matches(&self, selector: &str) -> bool {
+        todo!();
+    }
+}
+
 #[derive(Debug, Clone)]
 /// Represents a whole HTML document.
 ///
@@ -205,15 +218,17 @@ impl HtmlDocument {
             nodes: v,
         }
     }
-
-    /// Creates a new [`HtmlQuery`] from this [`HtmlDocument`]
-    pub fn new_query(&self) -> HtmlQuery {
-        HtmlQuery::new(&self.nodes)
-    }
-
-    pub fn find<T: Into<&str>(&self, selector : T) -> HtmlQuery {
-        let mut query = self.new_query();
+    pub fn find(&self, selector: &str) -> HtmlQuery {
+        let mut query = self.query();
         query.find(selector);
+        query
+    }
+}
+
+impl HtmlQueryable for HtmlDocument {
+    /// Creates a new [`HtmlQuery`] from this [`HtmlDocument`]
+    fn query(&self) -> HtmlQuery {
+        HtmlQuery::new(&self.nodes)
     }
 }
 

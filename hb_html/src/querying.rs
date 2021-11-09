@@ -1,11 +1,30 @@
 use crate::objects::HtmlNode;
 
+pub trait HtmlQueryable {
+    fn query(&self) -> HtmlQuery;
+}
+
+/// Provides a matches function that is used to check if a the objects matches the CSS Selector.
+pub trait CSSMatchable {
+    /// Check if the object matches the CSS selector provided.
+    fn matches(&self, selector: &str) -> bool;
+}
+
 /// An object which points to the a node in the HTML tree including the path to
 /// the node to allow looking at parent nodes.
 pub struct HtmlQueryResult<'a> {
     /// The path down the tree.
     /// The node is found by dereferencing the last element of the vector
     pub path: Vec<(&'a Vec<HtmlNode>, usize)>,
+}
+
+impl CSSMatchable for HtmlQueryResult<'_> {
+    fn matches(&self, selector: &str) -> bool {
+        match self.get_node() {
+            Some(node) => node.matches(selector),
+            None => false,
+        }
+    }
 }
 
 impl<'a> HtmlQueryResult<'a> {
@@ -119,9 +138,13 @@ impl<'a> HtmlQuery<'a> {
         }
     }
 
-    ///
+    /// Find all elements with the tag provided in the Html structure.
     pub fn find_with_tag(&self, tag: &str) -> &HtmlQuery {
         todo!();
+        // if there are existing results -> search using the results as the top level.
+        //    loop through the results and call match();
+        // else
+        //     walk html tree calling match() on each node;
     }
 
     /// Search through either the root HTML nodes if there are no results stored, 
