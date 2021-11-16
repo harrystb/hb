@@ -4,27 +4,12 @@ pub trait HtmlQueryable {
     fn query(&self) -> HtmlQuery;
 }
 
-/// Provides a matches function that is used to check if a the objects matches the CSS Selector.
-pub trait CSSMatchable {
-    /// Check if the object matches the CSS selector provided.
-    fn matches(&self, selector: &str) -> bool;
-}
-
 /// An object which points to the a node in the HTML tree including the path to
 /// the node to allow looking at parent nodes.
 pub struct HtmlQueryResult<'a> {
     /// The path down the tree.
     /// The node is found by dereferencing the last element of the vector
     pub path: Vec<(&'a Vec<HtmlNode>, usize)>,
-}
-
-impl CSSMatchable for HtmlQueryResult<'_> {
-    fn matches(&self, selector: &str) -> bool {
-        match self.get_node() {
-            Some(node) => node.matches(selector),
-            None => false,
-        }
-    }
 }
 
 impl<'a> HtmlQueryResult<'a> {
@@ -62,6 +47,11 @@ impl<'a> HtmlQueryResult<'a> {
     pub fn get_path_iter(&self) -> HtmlQueryResultIter {
         HtmlQueryResultIter::new(self)
     }
+
+    /// Checks if the node pointed to matches the CSS style selector provided.
+    fn matches(&self, selector: &str) -> bool {
+        todo!();
+    }
 }
 
 /// Iterator that walks along the path of the HtmlQueryResult from the bottom to
@@ -94,7 +84,7 @@ impl<'a> Iterator for HtmlQueryResultIter<'a> {
 /// Results are stores as HtmlQueryResults.
 ///
 /// Multiple searches are allowed on a single HtmlQuery object, and each
-/// subsequent search will search from the existing results rather that 
+/// subsequent search will search from the existing results rather that
 /// the top level of the HTML Document.
 ///
 /// # Example
@@ -147,12 +137,11 @@ impl<'a> HtmlQuery<'a> {
         //     walk html tree calling match() on each node;
     }
 
-    /// Search through either the root HTML nodes if there are no results stored, 
+    /// Search through either the root HTML nodes if there are no results stored,
     /// otherwise search through the current results.
     pub fn find(&self, tag: &str) -> &HtmlQuery {
         todo!();
     }
-
 }
 pub struct HtmlQueryResultMut<'a> {
     pub path: Vec<(&'a mut Vec<HtmlNode>, usize)>,

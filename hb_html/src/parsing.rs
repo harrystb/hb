@@ -1,5 +1,7 @@
 use crate::error::ParseHtmlError;
-use crate::objects::{HtmlNode, HtmlTag};
+use crate::objects::{
+    CSSSelectorItem, CSSSelectorRelationship, CSSSelectorRule, HtmlNode, HtmlTag,
+};
 use std::collections::VecDeque;
 
 // Read from the iterator until a quoted string or word is found (ignoring leading whitespace) then return the string and the character that ended the string
@@ -569,4 +571,12 @@ mod parse_html_document_tests {
 
         assert_eq!(doc.nodes, doc_from_str.nodes);
     }
+}
+
+pub fn parse_css_selector_rule(selector: &str) -> Result<CSSSelectorRule, ParseHtmlError> {
+    todo!();
+}
+
+pub fn parse_css_selector_item(selector: &str) -> Result<CSSSelectorItem, ParseHtmlError> {
+    todo!();
 }

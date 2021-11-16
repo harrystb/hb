@@ -1,6 +1,6 @@
 use crate::error::ParseHtmlError;
-use crate::parsing::{parse_html_tag, ParsedTagType};
-use crate::querying::{CSSMatchable, HtmlQuery, HtmlQueryable};
+use crate::parsing::{parse_css_selector_rule, parse_html_tag, ParsedTagType};
+use crate::querying::{HtmlQuery, HtmlQueryable};
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -175,12 +175,6 @@ impl HtmlQueryable for Vec<HtmlNode> {
     }
 }
 
-impl CSSMatchable for HtmlNode {
-    fn matches(&self, selector: &str) -> bool {
-        todo!();
-    }
-}
-
 #[derive(Debug, Clone)]
 /// Represents a whole HTML document.
 ///
@@ -267,5 +261,83 @@ impl FromStr for HtmlDocument {
             }
         }
         Ok(doc)
+    }
+}
+
+/// TODO! - do strings here...
+pub enum CSSSelectorRelationship {
+    Parent,
+    Ancestor,
+    PreviousSibling,
+    Current,
+}
+
+pub enum CSSRefiner {
+    Checked,
+    Default,
+    Disabled,
+    Enabled,
+    Invalid,
+    Valid,
+    Optional,
+    Required,
+    OutOfRange,
+    ReadOnly,
+    ReadWrite,
+    Empty,
+    FirstChild,
+    LastChild,
+    NthChild(CSSRefinerNumberTypes),
+    NthLastChild(CSSRefinerNumberTypes),
+    OnlyChild,
+    FirstOfType,
+    LastOfType,
+    NthOfType(CSSRefinerNumberTypes),
+    NthLastOfType(CSSRefinerNumberTypes),
+    OnlyOfType,
+    Not(CSSSelector),
+    Root,
+}
+
+pub enum CSSRefinerNumberTypes {
+    Odd,
+    Even,
+    Specific(usize),
+}
+
+pub struct CSSSelectorItem {
+    tag: Option<String>,
+    class: Option<String>,
+    id: Option<String>,
+    rule: Option<Vec<CSSRefiner>>, // anything :... eg :only-child
+}
+
+pub struct CSSSelectorRule {
+    rules: Vec<CSSSelectorRelationship>,
+}
+
+pub enum CSSSelector {
+    Any,
+    Specific(Vec<CSSSelectorRule>),
+}
+
+impl FromStr for CSSSelector {
+    type Err = ParseHtmlError;
+    fn from_str(selector: &str) -> Result<Self, <Self as std::str::FromStr>::Err> {
+        if selector == "*" {
+            return Ok(CSSSelector::Any);
+        }
+        let mut rules: Vec<CSSSelectorRule> = vec![];
+        for s in selector.split(",").map(|x| x.trim()) {
+            //parse rule and add to rules;
+            rules.push(parse_css_selector_rule(s)?);
+        }
+        if rules.len() > 0 {
+            return Ok(CSSSelector::Specific(rules));
+        }
+        Err(ParseHtmlError::with_msg(format!(
+            "No valid CSS selector found in {}",
+            selector
+        )))
     }
 }
