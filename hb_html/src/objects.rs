@@ -264,14 +264,27 @@ impl FromStr for HtmlDocument {
     }
 }
 
-/// TODO! - do strings here...
+//Example complex selector...
+// head div > div#titleblock p.bold#title:first-of-type
+// We want to match right to left...
+// 1. does the current node match p.bold#title:first-of-type
+// 2. does it have an ancestor which is
+// ...
+//
+// This should be done using a iterator backwards over the path,
+// and checking over the list of CSS relations, moving to the next
+// when it finds a node that matches (or exiting early if the
+// specific node did not match - eg parent/sibling)
+
+/// Represents the relationship that is next to be matched in the list of selector items.
 pub enum CSSSelectorRelationship {
-    Parent,
-    Ancestor,
-    PreviousSibling,
-    Current,
+    Parent(CSSSelectorItem),
+    Ancestor(CSSSelectorItem),
+    PreviousSibling(CSSSelectorItem),
+    Current(CSSSelectorItem),
 }
 
+/// represents all of the CSS selectors which follow a :, for example :last-child
 pub enum CSSRefiner {
     Checked,
     Default,
@@ -299,12 +312,14 @@ pub enum CSSRefiner {
     Root,
 }
 
+/// Used for CSS Selectors such as :nth-child(x) where x can be odd, even or a specific number
 pub enum CSSRefinerNumberTypes {
     Odd,
     Even,
     Specific(usize),
 }
 
+/// Represents a CSS selector for a particular node
 pub struct CSSSelectorItem {
     tag: Option<String>,
     class: Option<String>,
@@ -312,10 +327,14 @@ pub struct CSSSelectorItem {
     rule: Option<Vec<CSSRefiner>>, // anything :... eg :only-child
 }
 
+/// Represents a rule that must match for a CSS selector
 pub struct CSSSelectorRule {
     rules: Vec<CSSSelectorRelationship>,
 }
 
+/// Represents a CSS selector which could be anything (*) or based on a some selection rules.
+/// CSS selectors all multiple different match rules seperated by a comma. This is handle by
+/// having each matching rule in a vector.
 pub enum CSSSelector {
     Any,
     Specific(Vec<CSSSelectorRule>),
