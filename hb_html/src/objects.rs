@@ -300,23 +300,41 @@ pub enum CSSRefiner {
     Empty,
     FirstChild,
     LastChild,
-    NthChild(CSSRefinerNumberTypes),
-    NthLastChild(CSSRefinerNumberTypes),
+    NthChild(CSSRefinerNumberType),
+    NthLastChild(CSSRefinerNumberType),
     OnlyChild,
     FirstOfType,
     LastOfType,
-    NthOfType(CSSRefinerNumberTypes),
-    NthLastOfType(CSSRefinerNumberTypes),
+    NthOfType(CSSRefinerNumberType),
+    NthLastOfType(CSSRefinerNumberType),
     OnlyOfType,
     Not(CSSSelector),
     Root,
 }
 
 /// Used for CSS Selectors such as :nth-child(x) where x can be odd, even or a specific number
-pub enum CSSRefinerNumberTypes {
+pub enum CSSRefinerNumberType {
     Odd,
     Even,
     Specific(usize),
+}
+
+/// Used to represents the different types of attributes selections for example [attribute=value]
+pub enum CSSAttributeCompareType {
+    /// [attribute]
+    Present,
+    /// [attribute=value]
+    Equals(String),
+    /// [attribute|=value]
+    EqualsOrBeingsWith(String),
+    /// [attribute^=value]
+    BeginsWith(String),
+    /// [attribute$=value]
+    EndsWith(String),
+    /// [attribute*=value]
+    Contains(String),
+    /// [attribute~=value]
+    ContainsWord(String),
 }
 
 /// Represents a CSS selector for a particular node
@@ -324,7 +342,8 @@ pub struct CSSSelectorItem {
     tag: Option<String>,
     class: Option<String>,
     id: Option<String>,
-    rule: Option<Vec<CSSRefiner>>, // anything :... eg :only-child
+    rule: Option<Vec<CSSRefiner>>, // anything like :... eg :only-child
+    attibutes: Option<Vec<CSSAttributeCompareType>>,
 }
 
 /// Represents a rule that must match for a CSS selector

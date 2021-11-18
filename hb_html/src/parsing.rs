@@ -574,9 +574,56 @@ mod parse_html_document_tests {
 }
 
 pub fn parse_css_selector_rule(selector: &str) -> Result<CSSSelectorRule, ParseHtmlError> {
+    let mut chs = selector.chars().peekable();
     todo!();
 }
 
-pub fn parse_css_selector_item(selector: &str) -> Result<CSSSelectorItem, ParseHtmlError> {
+pub fn parse_css_selector_item(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+) -> Result<Option<CSSSelectorItem>, ParseHtmlError> {
+    //consume whitespace
+    loop {
+        match chs.peek() {
+            None => {
+                return Err(ParseHtmlError::with_msg(
+                    "Could not parse a CSS selector item - only whitespace in string.",
+                ))
+            }
+            Some(ch) => {
+                if ch.is_ascii_whitespace() {
+                    chs.next();
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    // read until one of " " + > ~
+
+    let mut selector_item = String::new();
+    loop {
+        match chs.peek() {
+            None => {
+                break;
+            }
+            Some(ch) => {
+                if ch == &' ' || ch == &'+' || ch == &'>' || ch == &'~' {
+                    break;
+                }
+                selector_item.push(chs.next().unwrap());
+            }
+        }
+    }
+
+    //parse the selector item
     todo!();
 }
+
+fn parse_css_selector_item_seperator(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+) -> Result<Option<String>, ParseHtmlError> {
+    todo!();
+}
+
+//TODO: Doc strings and tests
