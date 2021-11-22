@@ -1,6 +1,7 @@
 use crate::error::ParseHtmlError;
 use crate::objects::{
-    CSSSelectorItem, CSSSelectorRelationship, CSSSelectorRule, HtmlNode, HtmlTag,
+    CssAttributeCompareType, CssSelectorItem, CssSelectorRelationship, CssSelectorRule, HtmlNode,
+    HtmlTag,
 };
 use std::collections::VecDeque;
 
@@ -51,6 +52,44 @@ pub fn parse_until_one_of(
             }
         }
         buffer.push(ch);
+    }
+    return Err(ParseHtmlError::new(format!(
+        "End of string '{}' encountered before any end char '{:?}' was found",
+        buffer, end_chars
+    )));
+}
+
+pub fn parse_until_end_or_one_of_peekable(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+    end_chars: Vec<char>,
+) -> Option<String> {
+    let mut buffer = String::new();
+    while let Some(ch) = chs.peek() {
+        for end_char in &end_chars {
+            if ch == end_char {
+                return Some(buffer);
+            }
+        }
+        buffer.push(chs.next().unwrap());
+    }
+    if buffer.len() > 0 {
+        return Some(buffer);
+    }
+    None
+}
+
+pub fn parse_until_one_of_peekable(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+    end_chars: Vec<char>,
+) -> Result<String, ParseHtmlError> {
+    let mut buffer = String::new();
+    while let Some(ch) = chs.peek() {
+        for end_char in &end_chars {
+            if ch == end_char {
+                return Ok(buffer);
+            }
+        }
+        buffer.push(chs.next().unwrap());
     }
     return Err(ParseHtmlError::new(format!(
         "End of string '{}' encountered before any end char '{:?}' was found",
@@ -132,6 +171,23 @@ pub fn parse_until<F: Fn(&char) -> bool>(
     return Err(ParseHtmlError::new(format!(
         "End of string '{}' encountered before ending was found",
         buffer
+    )));
+}
+
+pub fn parse_until_char_peekable(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+    ending: char,
+) -> Result<String, ParseHtmlError> {
+    let mut buffer = String::new();
+    while let Some(ch) = chs.peek() {
+        if ch == &ending {
+            return Ok(buffer);
+        }
+        buffer.push(chs.next().unwrap());
+    }
+    return Err(ParseHtmlError::new(format!(
+        "End of string '{}' encountered before ending '{}' was found",
+        buffer, ending
     )));
 }
 
@@ -573,14 +629,14 @@ mod parse_html_document_tests {
     }
 }
 
-pub fn parse_css_selector_rule(selector: &str) -> Result<CSSSelectorRule, ParseHtmlError> {
+pub fn parse_css_selector_rule(selector: &str) -> Result<CssSelectorRule, ParseHtmlError> {
     let mut chs = selector.chars().peekable();
     todo!();
 }
 
 pub fn parse_css_selector_item(
     chs: &mut std::iter::Peekable<std::str::Chars>,
-) -> Result<Option<CSSSelectorItem>, ParseHtmlError> {
+) -> Result<Option<CssSelectorItem>, ParseHtmlError> {
     //consume whitespace
     loop {
         match chs.peek() {
@@ -600,30 +656,158 @@ pub fn parse_css_selector_item(
     }
 
     // read until one of " " + > ~
-
-    let mut selector_item = String::new();
+    let mut item_str = String::new();
     loop {
         match chs.peek() {
             None => {
                 break;
             }
             Some(ch) => {
-                if ch == &' ' || ch == &'+' || ch == &'>' || ch == &'~' {
+                if *ch == ' ' || *ch == '+' || *ch == '>' || *ch == '~' {
                     break;
                 }
-                selector_item.push(chs.next().unwrap());
+                item_str.push(chs.next().unwrap());
             }
         }
     }
 
+    if item_str.len() == 0 {
+        return Ok(None);
+    }
+
     //parse the selector item
+    let mut item_chars = item_str.chars().peekable();
+    // check prefix:
+    let mut item = CssSelectorItem::new();
+    loop {
+        match item_chars.peek() {
+            None => break,
+            Some(c) => match c {
+                '.' => {
+                    item_chars.next(); //consume the .
+                    match parse_until_end_or_one_of_peekable(
+                        &mut item_chars,
+                        vec!['.', '#', ':', '['],
+                    ) {
+                        Some(class) => item.class = Some(class),
+                        None => (),
+                    }
+                }
+                '#' => {
+                    item_chars.next(); //consume the .
+                    match parse_until_end_or_one_of_peekable(
+                        &mut item_chars,
+                        vec!['.', '#', ':', '['],
+                    ) {
+                        Some(id) => item.id = Some(id),
+                        None => (),
+                    }
+                }
+                ':' => {
+                    item_chars.next(); //consume the .
+                    match parse_until_end_or_one_of_peekable(
+                        &mut item_chars,
+                        vec!['.', '#', ':', '['],
+                    ) {
+                        Some(class) => item.class = Some(class),
+                        None => (),
+                    }
+                }
+                '[' => {
+                    item_chars.next(); //consume the .
+                    match &mut item.attributes {
+                        None => {
+                            let mut attributes = vec![];
+                            attributes.push(parse_css_attribute_rule(&mut item_chars)?);
+                            item.attributes = Some(attributes);
+                        }
+                        Some(attributes) => {
+                            attributes.push(parse_css_attribute_rule(&mut item_chars)?)
+                        }
+                    }
+                }
+                _ => {
+                    match parse_until_end_or_one_of_peekable(
+                        &mut item_chars,
+                        vec!['.', '#', ':', '['],
+                    ) {
+                        Some(tag) => item.tag = Some(tag),
+                        None => (),
+                    }
+                } //tag
+            },
+        }
+    }
     todo!();
 }
 
-fn parse_css_selector_item_seperator(
+fn parse_css_attribute_rule(
     chs: &mut std::iter::Peekable<std::str::Chars>,
-) -> Result<Option<String>, ParseHtmlError> {
-    todo!();
+) -> Result<CssAttributeCompareType, ParseHtmlError> {
+    let attr = parse_until_one_of_peekable(chs, vec![']', '=', '|', '^', '$', '*', '~'])?;
+    let mut sep = String::new();
+    match chs.peek() {
+        None => {
+            return Err(ParseHtmlError::with_msg(
+                "No attribute rule found in between [].",
+            ));
+        }
+        Some(c) => match c {
+            ']' => {
+                chs.next(); //consume ]
+                return Ok(CssAttributeCompareType::Present(attr));
+            }
+            _ => sep.push(chs.next().unwrap()),
+        },
+    }
+    if sep != "=" {
+        match chs.peek() {
+            None => {
+                return Err(ParseHtmlError::with_msg(format!(
+                    "Attribute rule not finished {}{}.",
+                    attr, sep
+                )));
+            }
+            Some(c) => {
+                if *c != '=' {
+                    return Err(ParseHtmlError::with_msg(format!(
+                        "Unkown attribute rule qualifier {}{}.",
+                        sep, c
+                    )));
+                }
+                sep.push(chs.next().unwrap());
+            }
+        }
+    }
+    let value = parse_until_char_peekable(chs, ']')?;
+    match sep.as_str() {
+        "=" => Ok(CssAttributeCompareType::Equals((attr, value))),
+        "|=" => Ok(CssAttributeCompareType::EqualsOrBeingsWith((attr, value))),
+        "^=" => Ok(CssAttributeCompareType::BeginsWith((attr, value))),
+        "$=" => Ok(CssAttributeCompareType::EndsWith((attr, value))),
+        "*=" => Ok(CssAttributeCompareType::Contains((attr, value))),
+        "~=" => Ok(CssAttributeCompareType::ContainsWord((attr, value))),
+        _ => {
+            return Err(ParseHtmlError::with_msg(format!(
+                "Unkown attribute rule qualifier {}.",
+                sep
+            )));
+        }
+    }
 }
 
 //TODO: Doc strings and tests
+
+// *IMPROVEMENT IDEAS*
+
+// 1.
+// Standardise parsing functions -> create a parsing enum for types of checks
+// EOF,
+// Char(char),
+// Substring(string),
+//
+// Then have a parse_until and parse_until_one_of functions.
+// These functions should take a peekable, not a standard chars iterator
+
+// 2.
+// Improve error reporting to add addition context as it goes up

@@ -277,15 +277,15 @@ impl FromStr for HtmlDocument {
 // specific node did not match - eg parent/sibling)
 
 /// Represents the relationship that is next to be matched in the list of selector items.
-pub enum CSSSelectorRelationship {
-    Parent(CSSSelectorItem),
-    Ancestor(CSSSelectorItem),
-    PreviousSibling(CSSSelectorItem),
-    Current(CSSSelectorItem),
+pub enum CssSelectorRelationship {
+    Parent(CssSelectorItem),
+    Ancestor(CssSelectorItem),
+    PreviousSibling(CssSelectorItem),
+    Current(CssSelectorItem),
 }
 
 /// represents all of the CSS selectors which follow a :, for example :last-child
-pub enum CSSRefiner {
+pub enum CssRefiner {
     Checked,
     Default,
     Disabled,
@@ -300,78 +300,90 @@ pub enum CSSRefiner {
     Empty,
     FirstChild,
     LastChild,
-    NthChild(CSSRefinerNumberType),
-    NthLastChild(CSSRefinerNumberType),
+    NthChild(CssRefinerNumberType),
+    NthLastChild(CssRefinerNumberType),
     OnlyChild,
     FirstOfType,
     LastOfType,
-    NthOfType(CSSRefinerNumberType),
-    NthLastOfType(CSSRefinerNumberType),
+    NthOfType(CssRefinerNumberType),
+    NthLastOfType(CssRefinerNumberType),
     OnlyOfType,
-    Not(CSSSelector),
+    Not(CssSelector),
     Root,
 }
 
 /// Used for CSS Selectors such as :nth-child(x) where x can be odd, even or a specific number
-pub enum CSSRefinerNumberType {
+pub enum CssRefinerNumberType {
     Odd,
     Even,
     Specific(usize),
 }
 
 /// Used to represents the different types of attributes selections for example [attribute=value]
-pub enum CSSAttributeCompareType {
+pub enum CssAttributeCompareType {
     /// [attribute]
-    Present,
+    Present(String),
     /// [attribute=value]
-    Equals(String),
+    Equals((String, String)),
     /// [attribute|=value]
-    EqualsOrBeingsWith(String),
+    EqualsOrBeingsWith((String, String)),
     /// [attribute^=value]
-    BeginsWith(String),
+    BeginsWith((String, String)),
     /// [attribute$=value]
-    EndsWith(String),
+    EndsWith((String, String)),
     /// [attribute*=value]
-    Contains(String),
+    Contains((String, String)),
     /// [attribute~=value]
-    ContainsWord(String),
+    ContainsWord((String, String)),
 }
 
 /// Represents a CSS selector for a particular node
-pub struct CSSSelectorItem {
-    tag: Option<String>,
-    class: Option<String>,
-    id: Option<String>,
-    rule: Option<Vec<CSSRefiner>>, // anything like :... eg :only-child
-    attibutes: Option<Vec<CSSAttributeCompareType>>,
+pub struct CssSelectorItem {
+    pub tag: Option<String>,
+    pub class: Option<String>,
+    pub id: Option<String>,
+    pub refiners: Option<Vec<CssRefiner>>, // anything like :... eg :only-child
+    pub attributes: Option<Vec<CssAttributeCompareType>>,
+}
+
+impl CssSelectorItem {
+    pub fn new() -> CssSelectorItem {
+        CssSelectorItem {
+            tag: None,
+            class: None,
+            id: None,
+            refiners: None,
+            attributes: None,
+        }
+    }
 }
 
 /// Represents a rule that must match for a CSS selector
-pub struct CSSSelectorRule {
-    rules: Vec<CSSSelectorRelationship>,
+pub struct CssSelectorRule {
+    rules: Vec<CssSelectorRelationship>,
 }
 
 /// Represents a CSS selector which could be anything (*) or based on a some selection rules.
 /// CSS selectors all multiple different match rules seperated by a comma. This is handle by
 /// having each matching rule in a vector.
-pub enum CSSSelector {
+pub enum CssSelector {
     Any,
-    Specific(Vec<CSSSelectorRule>),
+    Specific(Vec<CssSelectorRule>),
 }
 
-impl FromStr for CSSSelector {
+impl FromStr for CssSelector {
     type Err = ParseHtmlError;
     fn from_str(selector: &str) -> Result<Self, <Self as std::str::FromStr>::Err> {
         if selector == "*" {
-            return Ok(CSSSelector::Any);
+            return Ok(CssSelector::Any);
         }
-        let mut rules: Vec<CSSSelectorRule> = vec![];
+        let mut rules: Vec<CssSelectorRule> = vec![];
         for s in selector.split(",").map(|x| x.trim()) {
             //parse rule and add to rules;
             rules.push(parse_css_selector_rule(s)?);
         }
         if rules.len() > 0 {
-            return Ok(CSSSelector::Specific(rules));
+            return Ok(CssSelector::Specific(rules));
         }
         Err(ParseHtmlError::with_msg(format!(
             "No valid CSS selector found in {}",
