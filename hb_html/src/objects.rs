@@ -317,6 +317,7 @@ pub enum CssRefinerNumberType {
     Odd,
     Even,
     Specific(usize),
+    Functional((i32, i32)),
 }
 
 /// Used to represents the different types of attributes selections for example [attribute=value]

@@ -1,7 +1,7 @@
 use crate::error::ParseHtmlError;
 use crate::objects::{
-    CssAttributeCompareType, CssSelectorItem, CssSelectorRelationship, CssSelectorRule, HtmlNode,
-    HtmlTag,
+    CssAttributeCompareType, CssRefiner, CssRefinerNumberType, CssSelectorItem,
+    CssSelectorRelationship, CssSelectorRule, HtmlNode, HtmlTag,
 };
 use std::collections::VecDeque;
 
@@ -694,7 +694,7 @@ pub fn parse_css_selector_item(
                     }
                 }
                 '#' => {
-                    item_chars.next(); //consume the .
+                    item_chars.next(); //consume the #
                     match parse_until_end_or_one_of_peekable(
                         &mut item_chars,
                         vec!['.', '#', ':', '['],
@@ -704,7 +704,7 @@ pub fn parse_css_selector_item(
                     }
                 }
                 ':' => {
-                    item_chars.next(); //consume the .
+                    item_chars.next(); //consume the :
                     match parse_until_end_or_one_of_peekable(
                         &mut item_chars,
                         vec!['.', '#', ':', '['],
@@ -780,6 +780,7 @@ fn parse_css_attribute_rule(
         }
     }
     let value = parse_until_char_peekable(chs, ']')?;
+    chs.next(); // consume ]
     match sep.as_str() {
         "=" => Ok(CssAttributeCompareType::Equals((attr, value))),
         "|=" => Ok(CssAttributeCompareType::EqualsOrBeingsWith((attr, value))),
@@ -794,6 +795,138 @@ fn parse_css_attribute_rule(
             )));
         }
     }
+}
+
+fn parse_css_refiner(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+) -> Result<CssRefiner, ParseHtmlError> {
+    let refiner = parse_until_one_of_peekable(chs, vec!['.', '#', ':', '['])?;
+    if refiner == "checked" {
+        return Ok(CssRefiner::Checked);
+    } else if refiner == "default" {
+        return Ok(CssRefiner::Default);
+    } else if refiner == "disabled" {
+        return Ok(CssRefiner::Disabled);
+    } else if refiner == "enabled" {
+        return Ok(CssRefiner::Enabled);
+    } else if refiner == "invalid" {
+        return Ok(CssRefiner::Invalid);
+    } else if refiner == "valid" {
+        return Ok(CssRefiner::Valid);
+    } else if refiner == "optional" {
+        return Ok(CssRefiner::Optional);
+    } else if refiner == "required" {
+        return Ok(CssRefiner::Required);
+    } else if refiner == "out-of-range" {
+        return Ok(CssRefiner::OutOfRange);
+    } else if refiner == "read-only" {
+        return Ok(CssRefiner::ReadOnly);
+    } else if refiner == "read-write" {
+        return Ok(CssRefiner::ReadWrite);
+    } else if refiner == "empty" {
+        return Ok(CssRefiner::Empty);
+    } else if refiner == "first-child" {
+        return Ok(CssRefiner::FirstChild);
+    } else if refiner == "last-child" {
+        return Ok(CssRefiner::LastChild);
+    } else if refiner.starts_with("nth-child") {
+        return Ok(CssRefiner::NthChild(parse_css_refiner_number(
+            &refiner[9..],
+        )?));
+    }
+    return Err(ParseHtmlError::with_msg(format!(
+        "Unkown refiner type {}.",
+        refiner
+    )));
+}
+
+fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, ParseHtmlError> {
+    let mut str_iter = raw_str.chars();
+    match str_iter.next() {
+        None => {
+            return Err(ParseHtmlError::with_msg(format!(
+                "No number found for refiner, expected a ( at the start of {}.",
+                raw_str
+            )))
+        }
+        Some(c) => {
+            if c != '(' {
+                return Err(ParseHtmlError::with_msg(format!(
+                    "Expected ( after nth-child refiner but got {}",
+                    c
+                )));
+            }
+        }
+    }
+    match str_iter.last() {
+        None => {
+            return Err(ParseHtmlError::with_msg(format!(
+                "No ) found after ( in refiner {}.",
+                raw_str
+            )))
+        }
+        Some(c) => {
+            if c != '(' {
+                return Err(ParseHtmlError::with_msg(format!(
+                    "Expected ( after nth-child refiner but got {}",
+                    c
+                )));
+            }
+        }
+    }
+
+    let num_str = &raw_str[1..raw_str.len() - 1];
+    let parts: Vec<&str> = num_str.split('+').map(|x| x.trim()).collect();
+    if parts.len() > 2 {
+        return Err(ParseHtmlError::with_msg(format!(
+            "Too many +'s present in refiner number {}",
+            raw_str
+        )));
+    }
+
+    if parts.len() == 1 {
+        match parts[0] {
+            "odd" => return Ok(CssRefinerNumberType::Odd),
+            "even" => return Ok(CssRefinerNumberType::Even),
+            p => match p.parse::<usize>() {
+                Err(_) => {
+                    return Err(ParseHtmlError::with_msg(format!(
+                        "Could not parse number in refiner {}",
+                        raw_str
+                    )))
+                }
+                Ok(i) => return Ok(CssRefinerNumberType::Specific(i)),
+            },
+        }
+    }
+
+    if parts[0].chars().last().unwrap() != 'n' {
+        return Err(ParseHtmlError::with_msg(format!(
+            "Error parsing functional refiner, expected a 'n' at the end of {}",
+            parts[0]
+        )));
+    }
+
+    let multi = match parts[0][0..parts[0].len() - 1].parse::<i32>() {
+        Err(_) => {
+            return Err(ParseHtmlError::with_msg(format!(
+                "Could not parse int before the n in {}",
+                parts[0]
+            )))
+        }
+        Ok(i) => i,
+    };
+    let b = match parts[1].parse::<i32>() {
+        Err(_) => {
+            return Err(ParseHtmlError::with_msg(format!(
+                "Could not parse int in {}",
+                parts[1]
+            )))
+        }
+        Ok(i) => i,
+    };
+
+    Ok(CssRefinerNumberType::Functional((multi, b)))
 }
 
 //TODO: Doc strings and tests
