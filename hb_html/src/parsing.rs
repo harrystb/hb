@@ -1,6 +1,6 @@
 use crate::error::ParseHtmlError;
 use crate::objects::{
-    CssAttributeCompareType, CssRefiner, CssRefinerNumberType, CssSelectorItem,
+    CssAttributeCompareType, CssRefiner, CssRefinerNumberType, CssSelector, CssSelectorItem,
     CssSelectorRelationship, CssSelectorRule, HtmlNode, HtmlTag,
 };
 use std::collections::VecDeque;
@@ -171,6 +171,24 @@ pub fn parse_until<F: Fn(&char) -> bool>(
     return Err(ParseHtmlError::new(format!(
         "End of string '{}' encountered before ending was found",
         buffer
+    )));
+}
+
+pub fn parse_until_and_including_char(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+    ending: char,
+) -> Result<String, ParseHtmlError> {
+    let mut buffer = String::new();
+    while let Some(ch) = chs.peek() {
+        if ch == &ending {
+            buffer.push(chs.next().unwrap());
+            return Ok(buffer);
+        }
+        buffer.push(chs.next().unwrap());
+    }
+    return Err(ParseHtmlError::new(format!(
+        "End of string '{}' encountered before ending '{}' was found",
+        buffer, ending
     )));
 }
 
@@ -771,7 +789,7 @@ fn parse_css_attribute_rule(
             Some(c) => {
                 if *c != '=' {
                     return Err(ParseHtmlError::with_msg(format!(
-                        "Unkown attribute rule qualifier {}{}.",
+                        "Unknown attribute rule qualifier {}{}.",
                         sep, c
                     )));
                 }
@@ -790,7 +808,7 @@ fn parse_css_attribute_rule(
         "~=" => Ok(CssAttributeCompareType::ContainsWord((attr, value))),
         _ => {
             return Err(ParseHtmlError::with_msg(format!(
-                "Unkown attribute rule qualifier {}.",
+                "Unknown attribute rule qualifier {}.",
                 sep
             )));
         }
@@ -800,7 +818,10 @@ fn parse_css_attribute_rule(
 fn parse_css_refiner(
     chs: &mut std::iter::Peekable<std::str::Chars>,
 ) -> Result<CssRefiner, ParseHtmlError> {
-    let refiner = parse_until_one_of_peekable(chs, vec!['.', '#', ':', '['])?;
+    let refiner = match parse_until_end_or_one_of_peekable(chs, vec!['.', '#', ':', '[', '(']) {
+        None => return Err(ParseHtmlError::with_msg("No refiner found after :")),
+        Some(r) => r,
+    };
     if refiner == "checked" {
         return Ok(CssRefiner::Checked);
     } else if refiner == "default" {
@@ -831,13 +852,118 @@ fn parse_css_refiner(
         return Ok(CssRefiner::LastChild);
     } else if refiner.starts_with("nth-child") {
         return Ok(CssRefiner::NthChild(parse_css_refiner_number(
-            &refiner[9..],
+            &parse_until_and_including_char(chs, ')')?,
         )?));
+    } else if refiner.starts_with("nth-last-child") {
+        return Ok(CssRefiner::NthLastChild(parse_css_refiner_number(
+            &parse_until_and_including_char(chs, ')')?,
+        )?));
+    } else if refiner == "only-child" {
+        return Ok(CssRefiner::OnlyChild);
+    } else if refiner == "first-of-type" {
+        return Ok(CssRefiner::FirstOfType);
+    } else if refiner == "last-of-type" {
+        return Ok(CssRefiner::LastOfType);
+    } else if refiner.starts_with("nth-of-type") {
+        return Ok(CssRefiner::NthOfType(parse_css_refiner_number(
+            &parse_until_and_including_char(chs, ')')?,
+        )?));
+    } else if refiner.starts_with("nth-last-of-type") {
+        return Ok(CssRefiner::NthLastOfType(parse_css_refiner_number(
+            &parse_until_and_including_char(chs, ')')?,
+        )?));
+    } else if refiner == "only-of-type" {
+        return Ok(CssRefiner::OnlyOfType);
+    } else if refiner == "not" {
+        return Ok(CssRefiner::Not(todo!()));
+    } else if refiner == "root" {
+        return Ok(CssRefiner::Root);
     }
     return Err(ParseHtmlError::with_msg(format!(
-        "Unkown refiner type {}.",
+        "Unknown refiner type {}.",
         refiner
     )));
+}
+
+#[cfg(test)]
+mod parse_css_refiner_tests {
+    use super::*;
+
+    #[test]
+    fn parse_css_refiner_test() {
+        let tests = vec![
+            ("checked", CssRefiner::Checked),
+            ("default", CssRefiner::Default),
+            ("disabled", CssRefiner::Disabled),
+            ("enabled", CssRefiner::Enabled),
+            ("invalid", CssRefiner::Invalid),
+            ("valid", CssRefiner::Valid),
+            ("optional", CssRefiner::Optional),
+            ("required", CssRefiner::Required),
+            ("out-of-range", CssRefiner::OutOfRange),
+            ("read-only", CssRefiner::ReadOnly),
+            ("read-write", CssRefiner::ReadWrite),
+            ("empty", CssRefiner::Empty),
+            ("first-child", CssRefiner::FirstChild),
+            ("last-child", CssRefiner::LastChild),
+            (
+                "nth-child(1)",
+                CssRefiner::NthChild(CssRefinerNumberType::Specific(1)),
+            ),
+            (
+                "nth-child(2)",
+                CssRefiner::NthChild(CssRefinerNumberType::Specific(2)),
+            ),
+            (
+                "nth-child(2n+1)",
+                CssRefiner::NthChild(CssRefinerNumberType::Functional((2, 1))),
+            ),
+            (
+                "nth-child(odd)",
+                CssRefiner::NthChild(CssRefinerNumberType::Odd),
+            ),
+            (
+                "nth-child(even)",
+                CssRefiner::NthChild(CssRefinerNumberType::Even),
+            ),
+            (
+                "nth-last-child(1)",
+                CssRefiner::NthLastChild(CssRefinerNumberType::Specific(1)),
+            ),
+            ("only-child", CssRefiner::OnlyChild),
+            ("first-of-type", CssRefiner::FirstOfType),
+            ("last-of-type", CssRefiner::LastOfType),
+            (
+                "nth-of-type(1)",
+                CssRefiner::NthOfType(CssRefinerNumberType::Specific(1)),
+            ),
+            (
+                "nth-last-of-type(1)",
+                CssRefiner::NthLastOfType(CssRefinerNumberType::Specific(1)),
+            ),
+            ("only-of-type", CssRefiner::OnlyOfType),
+            ("root", CssRefiner::Root),
+            ("empty:checked", CssRefiner::Empty),
+            ("empty[attr]", CssRefiner::Empty),
+            ("empty#id", CssRefiner::Empty),
+            (
+                "not(p#id)",
+                CssRefiner::Not(CssSelector::Specific(vec![CssSelectorRule {
+                    rules: vec![CssSelectorRelationship::Current(CssSelectorItem {
+                        tag: Some("p".to_owned()),
+                        class: None,
+                        id: Some("id".to_owned()),
+                        refiners: None,
+                        attributes: None,
+                    })],
+                }])),
+            ),
+        ];
+
+        for t in tests {
+            assert_eq!(parse_css_refiner(&mut t.0.chars().peekable()).unwrap(), t.1);
+        }
+    }
 }
 
 fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, ParseHtmlError> {
@@ -852,7 +978,7 @@ fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, Parse
         Some(c) => {
             if c != '(' {
                 return Err(ParseHtmlError::with_msg(format!(
-                    "Expected ( after nth-child refiner but got {}",
+                    "Expected ( after refiner which needs a number/even/odd/function but got {}",
                     c
                 )));
             }
@@ -866,9 +992,9 @@ fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, Parse
             )))
         }
         Some(c) => {
-            if c != '(' {
+            if c != ')' {
                 return Err(ParseHtmlError::with_msg(format!(
-                    "Expected ( after nth-child refiner but got {}",
+                    "Expected ) at end of refiner number/even/odd/function but got {}",
                     c
                 )));
             }
