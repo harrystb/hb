@@ -50,8 +50,9 @@ impl std::fmt::Debug for HtmlDocError {
     }
 }
 
+#[derive(PartialEq)]
 pub struct ParseHtmlError {
-    msg: String,
+    pub msg: String,
 }
 
 impl ParseHtmlError {
@@ -61,6 +62,11 @@ impl ParseHtmlError {
 
     pub fn with_msg<S: Into<String>>(msg: S) -> ParseHtmlError {
         return ParseHtmlError::new(msg.into());
+    }
+
+    pub fn add_context<S: Into<String>>(mut self, msg: S) -> ParseHtmlError {
+        self.msg = format!("{} because {}", msg.into(), self.msg);
+        self
     }
 }
 

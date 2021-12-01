@@ -852,11 +852,21 @@ fn parse_css_refiner(
         return Ok(CssRefiner::LastChild);
     } else if refiner.starts_with("nth-child") {
         return Ok(CssRefiner::NthChild(parse_css_refiner_number(
-            &parse_until_and_including_char(chs, ')')?,
+            &parse_until_and_including_char(chs, ')').map_err(|e| {
+                e.add_context(format!(
+                    "error while trying to read CSS refiner number after {}",
+                    refiner
+                ))
+            })?,
         )?));
     } else if refiner.starts_with("nth-last-child") {
         return Ok(CssRefiner::NthLastChild(parse_css_refiner_number(
-            &parse_until_and_including_char(chs, ')')?,
+            &parse_until_and_including_char(chs, ')').map_err(|e| {
+                e.add_context(format!(
+                    "error while trying to read CSS refiner number after {}",
+                    refiner
+                ))
+            })?,
         )?));
     } else if refiner == "only-child" {
         return Ok(CssRefiner::OnlyChild);
@@ -866,12 +876,28 @@ fn parse_css_refiner(
         return Ok(CssRefiner::LastOfType);
     } else if refiner.starts_with("nth-of-type") {
         return Ok(CssRefiner::NthOfType(parse_css_refiner_number(
-            &parse_until_and_including_char(chs, ')')?,
+            &parse_until_and_including_char(chs, ')').map_err(|e| {
+                e.add_context(format!(
+                    "error while trying to read CSS refiner number after {}",
+                    refiner
+                ))
+            })?,
         )?));
     } else if refiner.starts_with("nth-last-of-type") {
-        return Ok(CssRefiner::NthLastOfType(parse_css_refiner_number(
-            &parse_until_and_including_char(chs, ')')?,
-        )?));
+        return Ok(CssRefiner::NthLastOfType(
+            parse_css_refiner_number(&parse_until_and_including_char(chs, ')').map_err(|e| {
+                e.add_context(format!(
+                    "error while trying to read CSS refiner number after {}",
+                    refiner
+                ))
+            })?)
+            .map_err(|e| {
+                e.add_context(format!(
+                    "error while trying to read CSS refiner number after {}",
+                    refiner
+                ))
+            })?,
+        ));
     } else if refiner == "only-of-type" {
         return Ok(CssRefiner::OnlyOfType);
     } else if refiner == "not" {
@@ -964,6 +990,23 @@ mod parse_css_refiner_tests {
             assert_eq!(parse_css_refiner(&mut t.0.chars().peekable()).unwrap(), t.1);
         }
     }
+
+    #[test]
+    fn parse_css_refiner_errors_test() {
+        let tests = vec![(
+            "nth-last-of-type(1a)",
+            ParseHtmlError::with_msg(
+                "error while trying to read CSS refiner number after nth-last-of-type because could not parse number in refiner (1a)",
+            ),
+        )];
+
+        for t in tests {
+            assert_eq!(
+                parse_css_refiner(&mut t.0.chars().peekable()).unwrap_err(),
+                t.1
+            );
+        }
+    }
 }
 
 fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, ParseHtmlError> {
@@ -1005,7 +1048,7 @@ fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, Parse
     let parts: Vec<&str> = num_str.split('+').map(|x| x.trim()).collect();
     if parts.len() > 2 {
         return Err(ParseHtmlError::with_msg(format!(
-            "Too many +'s present in refiner number {}",
+            "too many +'s present in refiner number {}",
             raw_str
         )));
     }
@@ -1017,7 +1060,7 @@ fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, Parse
             p => match p.parse::<usize>() {
                 Err(_) => {
                     return Err(ParseHtmlError::with_msg(format!(
-                        "Could not parse number in refiner {}",
+                        "could not parse number in refiner {}",
                         raw_str
                     )))
                 }
@@ -1028,7 +1071,7 @@ fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, Parse
 
     if parts[0].chars().last().unwrap() != 'n' {
         return Err(ParseHtmlError::with_msg(format!(
-            "Error parsing functional refiner, expected a 'n' at the end of {}",
+            "error parsing functional refiner, expected a 'n' at the end of {}",
             parts[0]
         )));
     }
@@ -1036,7 +1079,7 @@ fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, Parse
     let multi = match parts[0][0..parts[0].len() - 1].parse::<i32>() {
         Err(_) => {
             return Err(ParseHtmlError::with_msg(format!(
-                "Could not parse int before the n in {}",
+                "could not parse int before the n in {}",
                 parts[0]
             )))
         }
@@ -1045,7 +1088,7 @@ fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, Parse
     let b = match parts[1].parse::<i32>() {
         Err(_) => {
             return Err(ParseHtmlError::with_msg(format!(
-                "Could not parse int in {}",
+                "could not parse int in {}",
                 parts[1]
             )))
         }
