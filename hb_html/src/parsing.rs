@@ -31,7 +31,7 @@ pub fn parse_string(chs: &mut std::str::Chars) -> Result<(String, char), ParseHt
         buffer.push(ch);
     }
     return Err(ParseHtmlError::new(format!(
-        "End of string '{}' not found",
+        "end of string '{}' not found",
         buffer
     )));
 }
@@ -54,7 +54,7 @@ pub fn parse_until_one_of(
         buffer.push(ch);
     }
     return Err(ParseHtmlError::new(format!(
-        "End of string '{}' encountered before any end char '{:?}' was found",
+        "end of string '{}' encountered before any end char '{:?}' was found",
         buffer, end_chars
     )));
 }
@@ -92,7 +92,7 @@ pub fn parse_until_one_of_peekable(
         buffer.push(chs.next().unwrap());
     }
     return Err(ParseHtmlError::new(format!(
-        "End of string '{}' encountered before any end char '{:?}' was found",
+        "end of string '{}' encountered before any end char '{:?}' was found",
         buffer, end_chars
     )));
 }
@@ -113,7 +113,7 @@ pub fn parse_until_char(
         buffer.push(ch);
     }
     return Err(ParseHtmlError::new(format!(
-        "End of string '{}' encountered before end char '{}' was found",
+        "end of string '{}' encountered before end char '{}' was found",
         buffer, end_char
     )));
 }
@@ -146,7 +146,7 @@ pub fn parse_until_str(
         }
     }
     return Err(ParseHtmlError::new(format!(
-        "End of string '{}{}' encountered before any end string '{}' was found",
+        "end of string '{}{}' encountered before any end string '{}' was found",
         buffer,
         ending_buffer.iter().collect::<String>(),
         end_str
@@ -169,7 +169,7 @@ pub fn parse_until<F: Fn(&char) -> bool>(
         buffer.push(ch);
     }
     return Err(ParseHtmlError::new(format!(
-        "End of string '{}' encountered before ending was found",
+        "end of string '{}' encountered before ending was found",
         buffer
     )));
 }
@@ -187,7 +187,7 @@ pub fn parse_until_and_including_char(
         buffer.push(chs.next().unwrap());
     }
     return Err(ParseHtmlError::new(format!(
-        "End of string '{}' encountered before ending '{}' was found",
+        "end of string '{}' encountered before ending '{}' was found",
         buffer, ending
     )));
 }
@@ -204,7 +204,7 @@ pub fn parse_until_char_peekable(
         buffer.push(chs.next().unwrap());
     }
     return Err(ParseHtmlError::new(format!(
-        "End of string '{}' encountered before ending '{}' was found",
+        "end of string '{}' encountered before ending '{}' was found",
         buffer, ending
     )));
 }
@@ -789,7 +789,7 @@ fn parse_css_attribute_rule(
             Some(c) => {
                 if *c != '=' {
                     return Err(ParseHtmlError::with_msg(format!(
-                        "Unknown attribute rule qualifier {}{}.",
+                        "unknown attribute rule qualifier {}{}.",
                         sep, c
                     )));
                 }
@@ -808,7 +808,7 @@ fn parse_css_attribute_rule(
         "~=" => Ok(CssAttributeCompareType::ContainsWord((attr, value))),
         _ => {
             return Err(ParseHtmlError::with_msg(format!(
-                "Unknown attribute rule qualifier {}.",
+                "unknown attribute rule qualifier {}.",
                 sep
             )));
         }
@@ -906,7 +906,7 @@ fn parse_css_refiner(
         return Ok(CssRefiner::Root);
     }
     return Err(ParseHtmlError::with_msg(format!(
-        "Unknown refiner type {}.",
+        "unknown refiner type {}.",
         refiner
     )));
 }
@@ -997,8 +997,15 @@ mod parse_css_refiner_tests {
             "nth-last-of-type(1a)",
             ParseHtmlError::with_msg(
                 "error while trying to read CSS refiner number after nth-last-of-type because could not parse number in refiner (1a)",
+            )),
+            ("nth-last-of-type(1",
+            ParseHtmlError::with_msg(
+                "error while trying to read CSS refiner number after nth-last-of-type because end of string '(1' encountered before ending ')' was found",
+            )),
+            ("something-not-a-refiner",
+             ParseHtmlError::with_msg("unknown refiner type something-not-a-refiner.")
             ),
-        )];
+        ];
 
         for t in tests {
             assert_eq!(
