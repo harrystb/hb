@@ -209,6 +209,37 @@ pub fn parse_until_char_peekable(
     )));
 }
 
+pub fn parse_until_closed_brace(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+) -> Result<String, ParseHtmlError> {
+    let mut buffer = String::new();
+    let mut level = 0;
+    match chs.peek() {
+        None => return Err(ParseHtmlError::new(format!("no characters found",))),
+        Some(c) => {
+            if *c != '(' {
+                return Err(ParseHtmlError::new(format!("no opening brace was found")));
+            }
+        }
+    }
+    while let Some(ch) = chs.peek() {
+        if *ch == '(' {
+            level += 1;
+        }
+        if *ch == ')' {
+            level -= 1;
+            if level == 0 {
+                return Ok(buffer);
+            }
+        }
+        buffer.push(chs.next().unwrap());
+    }
+    return Err(ParseHtmlError::new(format!(
+        "end of string '{}' encountered before closing brace ')' was found",
+        buffer
+    )));
+}
+
 pub fn parse_attibute_value(attr_value: String) -> Vec<String> {
     let mut v = vec![];
     for val in attr_value.split_ascii_whitespace() {
@@ -647,6 +678,10 @@ mod parse_html_document_tests {
     }
 }
 
+pub fn parse_css_selector(selector: &str) -> Result<CssSelector, ParseHtmlError> {
+    todo!();
+}
+
 pub fn parse_css_selector_rule(selector: &str) -> Result<CssSelectorRule, ParseHtmlError> {
     let mut chs = selector.chars().peekable();
     todo!();
@@ -901,7 +936,16 @@ fn parse_css_refiner(
     } else if refiner == "only-of-type" {
         return Ok(CssRefiner::OnlyOfType);
     } else if refiner == "not" {
-        return Ok(CssRefiner::Not(todo!()));
+        return Ok(CssRefiner::Not(
+            parse_css_selector(
+                parse_until_closed_brace(chs)
+                    .map_err(|e| e.add_context("could not find closing brace for :not( refiner"))?
+                    .as_str(),
+            )
+            .map_err(|e| {
+                e.add_context("could not parse css selector inside the :not(..) refiner")
+            })?,
+        ));
     } else if refiner == "root" {
         return Ok(CssRefiner::Root);
     }
