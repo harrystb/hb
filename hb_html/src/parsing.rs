@@ -4,6 +4,7 @@ use crate::objects::{
     CssSelectorRelationship, CssSelectorRule, HtmlNode, HtmlTag,
 };
 use std::collections::VecDeque;
+use std::str::FromStr;
 
 // Read from the iterator until a quoted string or word is found (ignoring leading whitespace) then return the string and the character that ended the string
 // Endings of a single word can be whitespace or >
@@ -209,7 +210,7 @@ pub fn parse_until_char_peekable(
     )));
 }
 
-pub fn parse_until_closed_brace(
+pub fn parse_contents_of_braces(
     chs: &mut std::iter::Peekable<std::str::Chars>,
 ) -> Result<String, ParseHtmlError> {
     let mut buffer = String::new();
@@ -223,16 +224,20 @@ pub fn parse_until_closed_brace(
         }
     }
     while let Some(ch) = chs.peek() {
-        if *ch == '(' {
-            level += 1;
-        }
-        if *ch == ')' {
-            level -= 1;
-            if level == 0 {
-                return Ok(buffer);
+        match *ch {
+            '(' => {
+                level += 1;
+                chs.next();
             }
+            ')' => {
+                level -= 1;
+                chs.next();
+                if level == 0 {
+                    return Ok(buffer);
+                }
+            }
+            _ => buffer.push(chs.next().unwrap()),
         }
-        buffer.push(chs.next().unwrap());
     }
     return Err(ParseHtmlError::new(format!(
         "end of string '{}' encountered before closing brace ')' was found",
@@ -678,13 +683,98 @@ mod parse_html_document_tests {
     }
 }
 
-pub fn parse_css_selector(selector: &str) -> Result<CssSelector, ParseHtmlError> {
-    todo!();
+#[derive(PartialEq, Debug)]
+enum CssSelectorRelationshipType {
+    Current,
+    Parent,
+    Ancestor,
+    PreviousSibling,
 }
 
-pub fn parse_css_selector_rule(selector: &str) -> Result<CssSelectorRule, ParseHtmlError> {
-    let mut chs = selector.chars().peekable();
-    todo!();
+pub fn parse_css_selector_rule(selector_rule: &str) -> Result<CssSelectorRule, ParseHtmlError> {
+    let mut css_rule = CssSelectorRule::new();
+    let mut current_relationship = CssSelectorRelationshipType::Current;
+    let mut selector_chs = selector_rule.chars().peekable();
+    loop {
+        match selector_chs.peek() {
+            Some(c) => match c {
+                ',' => {
+                    return Err(ParseHtmlError::with_msg(format!(
+                        "unexpected ',' in css selector rule {}",
+                        selector_rule
+                    )))
+                }
+                _ => (),
+            },
+            None => break,
+        }
+        //check current relationship
+        let relationship = parse_css_selector_relationship(&mut selector_chs)?;
+        let item = match parse_css_selector_item(&mut selector_chs)? {
+            Some(item) => match relationship {
+                CssSelectorRelationshipType::Current => {
+                    css_rule.rules.push(CssSelectorRelationship::Current(item))
+                }
+                CssSelectorRelationshipType::Ancestor => {
+                    css_rule.rules.push(CssSelectorRelationship::Ancestor(item))
+                }
+                CssSelectorRelationshipType::Parent => {
+                    css_rule.rules.push(CssSelectorRelationship::Parent(item))
+                }
+                CssSelectorRelationshipType::PreviousSibling => css_rule
+                    .rules
+                    .push(CssSelectorRelationship::PreviousSibling(item)),
+            },
+            None => break,
+        };
+    }
+    Ok(css_rule)
+}
+
+fn parse_css_selector_relationship(
+    chs: &mut std::iter::Peekable<std::str::Chars>,
+) -> Result<CssSelectorRelationshipType, ParseHtmlError> {
+    let mut rel = CssSelectorRelationshipType::Current;
+    while let Some(c) = chs.peek() {
+        match *c {
+            ' ' => {
+                if rel == CssSelectorRelationshipType::Current {
+                    rel = CssSelectorRelationshipType::Ancestor;
+                }
+                chs.next();
+            }
+            '>' => {
+                //if we have already read a > or a ~
+                if rel != CssSelectorRelationshipType::Ancestor
+                    && rel != CssSelectorRelationshipType::Current
+                {
+                    return Err(ParseHtmlError::with_msg(format!(
+                        "found multiple relationship seperators in selector first '{:?}' and now '{:?}'",
+                        rel,
+                        CssSelectorRelationshipType::Parent
+                    )));
+                }
+                chs.next();
+                rel = CssSelectorRelationshipType::Parent;
+            }
+            '~' => {
+                //if we have already read a > or a ~
+                if rel != CssSelectorRelationshipType::Ancestor
+                    && rel != CssSelectorRelationshipType::Current
+                {
+                    return Err(ParseHtmlError::with_msg(format!(
+                        "found multiple relationship seperators in selector first {:?} and now {:?}",
+                        rel,
+                        CssSelectorRelationshipType::PreviousSibling
+                    )));
+                }
+                chs.next();
+                rel = CssSelectorRelationshipType::PreviousSibling;
+            }
+            _ => break,
+        }
+    }
+    Ok(rel)
 }
 
 pub fn parse_css_selector_item(
@@ -791,7 +881,7 @@ pub fn parse_css_selector_item(
             },
         }
     }
-    todo!();
+    Ok(Some(item))
 }
 
 fn parse_css_attribute_rule(
@@ -937,8 +1027,8 @@ fn parse_css_refiner(
         return Ok(CssRefiner::OnlyOfType);
     } else if refiner == "not" {
         return Ok(CssRefiner::Not(
-            parse_css_selector(
-                parse_until_closed_brace(chs)
+            CssSelector::from_str(
+                parse_contents_of_braces(chs)
                     .map_err(|e| e.add_context("could not find closing brace for :not( refiner"))?
                     .as_str(),
             )

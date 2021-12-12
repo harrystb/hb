@@ -370,6 +370,12 @@ pub struct CssSelectorRule {
     pub rules: Vec<CssSelectorRelationship>,
 }
 
+impl CssSelectorRule {
+    pub fn new() -> CssSelectorRule {
+        CssSelectorRule { rules: vec![] }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 /// Represents a CSS selector which could be anything (*) or based on a some selection rules.
 /// CSS selectors all multiple different match rules seperated by a comma. This is handle by
