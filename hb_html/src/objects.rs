@@ -346,8 +346,8 @@ pub enum CssAttributeCompareType {
 /// Represents a CSS selector for a particular node
 pub struct CssSelectorItem {
     pub tag: Option<String>,
-    pub class: Option<String>,
-    pub id: Option<String>,
+    pub classes: Option<Vec<String>>,
+    pub ids: Option<Vec<String>>,
     pub refiners: Option<Vec<CssRefiner>>, // anything like :... eg :only-child
     pub attributes: Option<Vec<CssAttributeCompareType>>,
 }
@@ -356,8 +356,8 @@ impl CssSelectorItem {
     pub fn new() -> CssSelectorItem {
         CssSelectorItem {
             tag: None,
-            class: None,
-            id: None,
+            classes: None,
+            ids: None,
             refiners: None,
             attributes: None,
         }

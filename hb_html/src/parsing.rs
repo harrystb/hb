@@ -749,7 +749,7 @@ fn parse_css_selector_relationship(
                     && rel != CssSelectorRelationshipType::Current
                 {
                     return Err(ParseHtmlError::with_msg(format!(
-                        "found multiple relationship seperators in selector first '{:?}' and now '{:?}'",
+                        "found multiple relationship seperators in selector first {:?} and now {:?}",
                         rel,
                         CssSelectorRelationshipType::Parent
                     )));
@@ -832,7 +832,10 @@ pub fn parse_css_selector_item(
                         &mut item_chars,
                         vec!['.', '#', ':', '['],
                     ) {
-                        Some(class) => item.class = Some(class),
+                        Some(class) => match &mut item.classes {
+                            Some(classes) => classes.push(class),
+                            None => item.classes = Some(vec![class]),
+                        },
                         None => (),
                     }
                 }
@@ -842,18 +845,19 @@ pub fn parse_css_selector_item(
                         &mut item_chars,
                         vec!['.', '#', ':', '['],
                     ) {
-                        Some(id) => item.id = Some(id),
+                        Some(id) => match &mut item.ids {
+                            Some(ids) => ids.push(id),
+                            None => item.ids = Some(vec![id]),
+                        },
                         None => (),
                     }
                 }
                 ':' => {
                     item_chars.next(); //consume the :
-                    match parse_until_end_or_one_of_peekable(
-                        &mut item_chars,
-                        vec!['.', '#', ':', '['],
-                    ) {
-                        Some(class) => item.class = Some(class),
-                        None => (),
+                    let refiner = parse_css_refiner(&mut item_chars)?;
+                    match &mut item.refiners {
+                        Some(refiners) => refiners.push(refiner),
+                        None => item.refiners = Some(vec![refiner]),
                     }
                 }
                 '[' => {
@@ -1045,111 +1049,6 @@ fn parse_css_refiner(
     )));
 }
 
-#[cfg(test)]
-mod parse_css_refiner_tests {
-    use super::*;
-
-    #[test]
-    fn parse_css_refiner_test() {
-        let tests = vec![
-            ("checked", CssRefiner::Checked),
-            ("default", CssRefiner::Default),
-            ("disabled", CssRefiner::Disabled),
-            ("enabled", CssRefiner::Enabled),
-            ("invalid", CssRefiner::Invalid),
-            ("valid", CssRefiner::Valid),
-            ("optional", CssRefiner::Optional),
-            ("required", CssRefiner::Required),
-            ("out-of-range", CssRefiner::OutOfRange),
-            ("read-only", CssRefiner::ReadOnly),
-            ("read-write", CssRefiner::ReadWrite),
-            ("empty", CssRefiner::Empty),
-            ("first-child", CssRefiner::FirstChild),
-            ("last-child", CssRefiner::LastChild),
-            (
-                "nth-child(1)",
-                CssRefiner::NthChild(CssRefinerNumberType::Specific(1)),
-            ),
-            (
-                "nth-child(2)",
-                CssRefiner::NthChild(CssRefinerNumberType::Specific(2)),
-            ),
-            (
-                "nth-child(2n+1)",
-                CssRefiner::NthChild(CssRefinerNumberType::Functional((2, 1))),
-            ),
-            (
-                "nth-child(odd)",
-                CssRefiner::NthChild(CssRefinerNumberType::Odd),
-            ),
-            (
-                "nth-child(even)",
-                CssRefiner::NthChild(CssRefinerNumberType::Even),
-            ),
-            (
-                "nth-last-child(1)",
-                CssRefiner::NthLastChild(CssRefinerNumberType::Specific(1)),
-            ),
-            ("only-child", CssRefiner::OnlyChild),
-            ("first-of-type", CssRefiner::FirstOfType),
-            ("last-of-type", CssRefiner::LastOfType),
-            (
-                "nth-of-type(1)",
-                CssRefiner::NthOfType(CssRefinerNumberType::Specific(1)),
-            ),
-            (
-                "nth-last-of-type(1)",
-                CssRefiner::NthLastOfType(CssRefinerNumberType::Specific(1)),
-            ),
-            ("only-of-type", CssRefiner::OnlyOfType),
-            ("root", CssRefiner::Root),
-            ("empty:checked", CssRefiner::Empty),
-            ("empty[attr]", CssRefiner::Empty),
-            ("empty#id", CssRefiner::Empty),
-            (
-                "not(p#id)",
-                CssRefiner::Not(CssSelector::Specific(vec![CssSelectorRule {
-                    rules: vec![CssSelectorRelationship::Current(CssSelectorItem {
-                        tag: Some("p".to_owned()),
-                        class: None,
-                        id: Some("id".to_owned()),
-                        refiners: None,
-                        attributes: None,
-                    })],
-                }])),
-            ),
-        ];
-
-        for t in tests {
-            assert_eq!(parse_css_refiner(&mut t.0.chars().peekable()).unwrap(), t.1);
-        }
-    }
-
-    #[test]
-    fn parse_css_refiner_errors_test() {
-        let tests = vec![(
-            "nth-last-of-type(1a)",
-            ParseHtmlError::with_msg(
-                "error while trying to read CSS refiner number after nth-last-of-type because could not parse number in refiner (1a)",
-            )),
-            ("nth-last-of-type(1",
-            ParseHtmlError::with_msg(
-                "error while trying to read CSS refiner number after nth-last-of-type because end of string '(1' encountered before ending ')' was found",
-            )),
-            ("something-not-a-refiner",
-             ParseHtmlError::with_msg("unknown refiner type something-not-a-refiner.")
-            ),
-        ];
-
-        for t in tests {
-            assert_eq!(
-                parse_css_refiner(&mut t.0.chars().peekable()).unwrap_err(),
-                t.1
-            );
-        }
-    }
-}
-
 fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, ParseHtmlError> {
     let mut str_iter = raw_str.chars();
     match str_iter.next() {
@@ -1237,6 +1136,174 @@ fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, Parse
     };
 
     Ok(CssRefinerNumberType::Functional((multi, b)))
+}
+
+#[cfg(test)]
+mod parse_css_selector_tests {
+    use super::*;
+
+    #[test]
+    fn parse_css_refiner_test() {
+        let tests = vec![
+            ("checked", CssRefiner::Checked),
+            ("default", CssRefiner::Default),
+            ("disabled", CssRefiner::Disabled),
+            ("enabled", CssRefiner::Enabled),
+            ("invalid", CssRefiner::Invalid),
+            ("valid", CssRefiner::Valid),
+            ("optional", CssRefiner::Optional),
+            ("required", CssRefiner::Required),
+            ("out-of-range", CssRefiner::OutOfRange),
+            ("read-only", CssRefiner::ReadOnly),
+            ("read-write", CssRefiner::ReadWrite),
+            ("empty", CssRefiner::Empty),
+            ("first-child", CssRefiner::FirstChild),
+            ("last-child", CssRefiner::LastChild),
+            (
+                "nth-child(1)",
+                CssRefiner::NthChild(CssRefinerNumberType::Specific(1)),
+            ),
+            (
+                "nth-child(2)",
+                CssRefiner::NthChild(CssRefinerNumberType::Specific(2)),
+            ),
+            (
+                "nth-child(2n+1)",
+                CssRefiner::NthChild(CssRefinerNumberType::Functional((2, 1))),
+            ),
+            (
+                "nth-child(odd)",
+                CssRefiner::NthChild(CssRefinerNumberType::Odd),
+            ),
+            (
+                "nth-child(even)",
+                CssRefiner::NthChild(CssRefinerNumberType::Even),
+            ),
+            (
+                "nth-last-child(1)",
+                CssRefiner::NthLastChild(CssRefinerNumberType::Specific(1)),
+            ),
+            ("only-child", CssRefiner::OnlyChild),
+            ("first-of-type", CssRefiner::FirstOfType),
+            ("last-of-type", CssRefiner::LastOfType),
+            (
+                "nth-of-type(1)",
+                CssRefiner::NthOfType(CssRefinerNumberType::Specific(1)),
+            ),
+            (
+                "nth-last-of-type(1)",
+                CssRefiner::NthLastOfType(CssRefinerNumberType::Specific(1)),
+            ),
+            ("only-of-type", CssRefiner::OnlyOfType),
+            ("root", CssRefiner::Root),
+            ("empty:checked", CssRefiner::Empty),
+            ("empty[attr]", CssRefiner::Empty),
+            ("empty#id", CssRefiner::Empty),
+            (
+                "not(p#id)",
+                CssRefiner::Not(CssSelector::Specific(vec![CssSelectorRule {
+                    rules: vec![CssSelectorRelationship::Current(CssSelectorItem {
+                        tag: Some("p".to_owned()),
+                        classes: None,
+                        ids: Some(vec!["id".to_owned()]),
+                        refiners: None,
+                        attributes: None,
+                    })],
+                }])),
+            ),
+        ];
+
+        for t in tests {
+            assert_eq!(parse_css_refiner(&mut t.0.chars().peekable()).unwrap(), t.1);
+        }
+    }
+
+    #[test]
+    fn parse_css_refiner_errors_test() {
+        let tests = vec![(
+            "nth-last-of-type(1a)",
+            ParseHtmlError::with_msg(
+                "error while trying to read CSS refiner number after nth-last-of-type because could not parse number in refiner (1a)",
+            )),
+            ("nth-last-of-type(1",
+            ParseHtmlError::with_msg(
+                "error while trying to read CSS refiner number after nth-last-of-type because end of string '(1' encountered before ending ')' was found",
+            )),
+            ("something-not-a-refiner",
+             ParseHtmlError::with_msg("unknown refiner type something-not-a-refiner.")
+            ),
+        ];
+
+        for t in tests {
+            assert_eq!(
+                parse_css_refiner(&mut t.0.chars().peekable()).unwrap_err(),
+                t.1
+            );
+        }
+    }
+
+    #[test]
+    fn parse_css_selector_relationship_test() {
+        let tests = vec![
+            (" > ", Ok(CssSelectorRelationshipType::Parent)),
+            (">", Ok(CssSelectorRelationshipType::Parent)),
+            ("   ", Ok(CssSelectorRelationshipType::Ancestor)),
+            ("  ", Ok(CssSelectorRelationshipType::Ancestor)),
+            (" ", Ok(CssSelectorRelationshipType::Ancestor)),
+            (" ~ ", Ok(CssSelectorRelationshipType::PreviousSibling)),
+            ("~", Ok(CssSelectorRelationshipType::PreviousSibling)),
+            (" > ~ ", Err(ParseHtmlError::with_msg("found multiple relationship seperators in selector first Parent and now PreviousSibling"))),
+            ("~>", Err(ParseHtmlError::with_msg("found multiple relationship seperators in selector first PreviousSibling and now Parent"))),
+        ];
+
+        for t in tests {
+            assert_eq!(
+                parse_css_selector_relationship(&mut t.0.chars().peekable()),
+                t.1
+            );
+        }
+    }
+
+    #[test]
+    fn parse_css_selector_item_test() {
+        let tests = vec![
+            (
+                "div",
+                Ok(Some(CssSelectorItem {
+                    tag: Some("div".to_owned()),
+                    classes: None,
+                    ids: None,
+                    refiners: None,
+                    attributes: None,
+                })),
+            ),
+            (
+                "div.c1",
+                Ok(Some(CssSelectorItem {
+                    tag: Some("div".to_owned()),
+                    classes: Some(vec!["c1".to_owned()]),
+                    ids: None,
+                    refiners: None,
+                    attributes: None,
+                })),
+            ),
+            (
+                "div.c1.c2",
+                Ok(Some(CssSelectorItem {
+                    tag: Some("div".to_owned()),
+                    classes: Some(vec!["c1".to_owned(), "c2".to_owned()]),
+                    ids: None,
+                    refiners: None,
+                    attributes: None,
+                })),
+            ),
+            //More tests needed here!
+        ];
+
+        for t in tests {
+            assert_eq!(parse_css_selector_item(&mut t.0.chars().peekable()), t.1);
+        }
+    }
 }
 
 //TODO: Doc strings and tests
