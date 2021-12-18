@@ -708,10 +708,9 @@ pub fn parse_css_selector_rule(selector_rule: &str) -> Result<CssSelectorRule, P
             },
             None => break,
         }
-        //check current relationship
-        let relationship = parse_css_selector_relationship(&mut selector_chs)?;
         let item = match parse_css_selector_item(&mut selector_chs)? {
-            Some(item) => match relationship {
+            //check following characters to work out what the relationship should be
+            Some(item) => match parse_css_selector_relationship(&mut selector_chs)? {
                 CssSelectorRelationshipType::Current => {
                     css_rule.rules.push(CssSelectorRelationship::Current(item))
                 }
@@ -725,6 +724,7 @@ pub fn parse_css_selector_rule(selector_rule: &str) -> Result<CssSelectorRule, P
                     .rules
                     .push(CssSelectorRelationship::PreviousSibling(item)),
             },
+
             None => break,
         };
     }
@@ -1302,6 +1302,49 @@ mod parse_css_selector_tests {
 
         for t in tests {
             assert_eq!(parse_css_selector_item(&mut t.0.chars().peekable()), t.1);
+        }
+    }
+
+    #[test]
+    fn parse_css_selector_rule_test() {
+        let tests = vec![
+            (
+                "div",
+                CssSelectorRule {
+                    rules: vec![CssSelectorRelationship::Current(CssSelectorItem {
+                        tag: Some("div".to_owned()),
+                        classes: None,
+                        ids: None,
+                        refiners: None,
+                        attributes: None,
+                    })],
+                },
+            ),
+            (
+                "div p",
+                CssSelectorRule {
+                    rules: vec![
+                        CssSelectorRelationship::Ancestor(CssSelectorItem {
+                            tag: Some("div".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                        CssSelectorRelationship::Current(CssSelectorItem {
+                            tag: Some("p".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                    ],
+                },
+            ),
+        ];
+
+        for t in tests {
+            assert_eq!(parse_css_selector_rule(t.0).unwrap(), t.1);
         }
     }
 }
