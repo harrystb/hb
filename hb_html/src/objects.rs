@@ -282,6 +282,7 @@ pub enum CssSelectorRelationship {
     Parent(CssSelectorItem),
     Ancestor(CssSelectorItem),
     PreviousSibling(CssSelectorItem),
+    PreviousSiblingOnce(CssSelectorItem),
     Current(CssSelectorItem),
 }
 

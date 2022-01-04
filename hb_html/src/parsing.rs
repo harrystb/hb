@@ -689,6 +689,7 @@ enum CssSelectorRelationshipType {
     Parent,
     Ancestor,
     PreviousSibling,
+    PreviousSiblingOnce,
 }
 
 pub fn parse_css_selector_rule(selector_rule: &str) -> Result<CssSelectorRule, ParseHtmlError> {
@@ -723,6 +724,9 @@ pub fn parse_css_selector_rule(selector_rule: &str) -> Result<CssSelectorRule, P
                 CssSelectorRelationshipType::PreviousSibling => css_rule
                     .rules
                     .push(CssSelectorRelationship::PreviousSibling(item)),
+                CssSelectorRelationshipType::PreviousSiblingOnce => css_rule
+                    .rules
+                    .push(CssSelectorRelationship::PreviousSiblingOnce(item)),
             },
 
             None => break,
@@ -771,6 +775,20 @@ fn parse_css_selector_relationship(
                 chs.next();
                 rel = CssSelectorRelationshipType::PreviousSibling;
             }
+            '+' => {
+                //if we have already read a > or a ~
+                if rel != CssSelectorRelationshipType::Ancestor
+                    && rel != CssSelectorRelationshipType::Current
+                {
+                    return Err(ParseHtmlError::with_msg(format!(
+                        "found multiple relationship seperators in selector first {:?} and now {:?}",
+                        rel,
+                        CssSelectorRelationshipType::PreviousSiblingOnce
+                    )));
+                }
+                chs.next();
+                rel = CssSelectorRelationshipType::PreviousSiblingOnce;
+            }
             _ => break,
         }
     }
@@ -800,13 +818,18 @@ pub fn parse_css_selector_item(
 
     // read until one of " " + > ~
     let mut item_str = String::new();
+    let mut level = 0; //for handling ( and )
     loop {
         match chs.peek() {
             None => {
                 break;
             }
             Some(ch) => {
-                if *ch == ' ' || *ch == '+' || *ch == '>' || *ch == '~' {
+                if *ch == '(' {
+                    level = level + 1;
+                } else if *ch == '(' {
+                    level = level - 1;
+                } else if (*ch == ' ' || *ch == '+' || *ch == '>' || *ch == '~') && (level == 0) {
                     break;
                 }
                 item_str.push(chs.next().unwrap());
@@ -1252,6 +1275,8 @@ mod parse_css_selector_tests {
             (" ", Ok(CssSelectorRelationshipType::Ancestor)),
             (" ~ ", Ok(CssSelectorRelationshipType::PreviousSibling)),
             ("~", Ok(CssSelectorRelationshipType::PreviousSibling)),
+            (" + ", Ok(CssSelectorRelationshipType::PreviousSiblingOnce)),
+            ("+", Ok(CssSelectorRelationshipType::PreviousSiblingOnce)),
             (" > ~ ", Err(ParseHtmlError::with_msg("found multiple relationship seperators in selector first Parent and now PreviousSibling"))),
             ("~>", Err(ParseHtmlError::with_msg("found multiple relationship seperators in selector first PreviousSibling and now Parent"))),
         ];
@@ -1297,6 +1322,62 @@ mod parse_css_selector_tests {
                     attributes: None,
                 })),
             ),
+            (
+                "div#first",
+                Ok(Some(CssSelectorItem {
+                    tag: Some("div".to_owned()),
+                    classes: None,
+                    ids: Some(vec!["first".to_owned()]),
+                    refiners: None,
+                    attributes: None,
+                })),
+            ),
+            (
+                "div#first#second",
+                Ok(Some(CssSelectorItem {
+                    tag: Some("div".to_owned()),
+                    classes: None,
+                    ids: Some(vec!["first".to_owned(), "second".to_owned()]),
+                    refiners: None,
+                    attributes: None,
+                })),
+            ),
+            (
+                "div[attr]",
+                Ok(Some(CssSelectorItem {
+                    tag: Some("div".to_owned()),
+                    classes: None,
+                    ids: None,
+                    refiners: None,
+                    attributes: Some(vec![CssAttributeCompareType::Present("attr".to_owned())]),
+                })),
+            ),
+            (
+                "div:first-child[attr]",
+                Ok(Some(CssSelectorItem {
+                    tag: Some("div".to_owned()),
+                    classes: None,
+                    ids: None,
+                    refiners: Some(vec![CssRefiner::FirstChild]),
+                    attributes: Some(vec![CssAttributeCompareType::Present("attr".to_owned())]),
+                })),
+            ),
+            (
+                "div.c1:first-child[attr][attr2=1].c2#first:nth-of-type(2n+1)",
+                Ok(Some(CssSelectorItem {
+                    tag: Some("div".to_owned()),
+                    classes: Some(vec!["c1".to_owned(), "c2".to_owned()]),
+                    ids: Some(vec!["first".to_owned()]),
+                    refiners: Some(vec![
+                        CssRefiner::FirstChild,
+                        CssRefiner::NthOfType(CssRefinerNumberType::Functional((2, 1))),
+                    ]),
+                    attributes: Some(vec![
+                        CssAttributeCompareType::Present("attr".to_owned()),
+                        CssAttributeCompareType::Equals(("attr2".to_owned(), "1".to_owned())),
+                    ]),
+                })),
+            ),
             //More tests needed here!
         ];
 
@@ -1326,6 +1407,83 @@ mod parse_css_selector_tests {
                     rules: vec![
                         CssSelectorRelationship::Ancestor(CssSelectorItem {
                             tag: Some("div".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                        CssSelectorRelationship::Current(CssSelectorItem {
+                            tag: Some("p".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                    ],
+                },
+            ),
+            (
+                "div > p",
+                CssSelectorRule {
+                    rules: vec![
+                        CssSelectorRelationship::Parent(CssSelectorItem {
+                            tag: Some("div".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                        CssSelectorRelationship::Current(CssSelectorItem {
+                            tag: Some("p".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                    ],
+                },
+            ),
+            (
+                "div a > p",
+                CssSelectorRule {
+                    rules: vec![
+                        CssSelectorRelationship::Ancestor(CssSelectorItem {
+                            tag: Some("div".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                        CssSelectorRelationship::Parent(CssSelectorItem {
+                            tag: Some("a".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                        CssSelectorRelationship::Current(CssSelectorItem {
+                            tag: Some("p".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                    ],
+                },
+            ),
+            (
+                "div a ~ p",
+                CssSelectorRule {
+                    rules: vec![
+                        CssSelectorRelationship::Ancestor(CssSelectorItem {
+                            tag: Some("div".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                        CssSelectorRelationship::PreviousSibling(CssSelectorItem {
+                            tag: Some("a".to_owned()),
                             classes: None,
                             ids: None,
                             refiners: None,
