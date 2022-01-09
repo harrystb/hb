@@ -911,6 +911,18 @@ pub fn parse_css_selector_item(
     Ok(Some(item))
 }
 
+/// Parses a peekable chars iterator for a CSS selector attribute rule.
+/// CSS selector attribute rules refers to the modifiers in a CSS selector that are
+/// contained in square brackets "[]", for example [attr=value].
+///
+/// # Example
+///
+/// ```ignore
+/// use hb_html::parsing::parse_css_attribute_rule;
+/// use hb_html::objects::CssAttributeCompareType;
+/// let css_attr_rule = parse_css_attribute_rule("[attr=val]".chars().peekable()).expect();
+/// assert_eq!(css_attr_rule, CssAttributeCompareType::Equals(("attr".to_owned(), "val".to_owned())));
+/// ```
 fn parse_css_attribute_rule(
     chs: &mut std::iter::Peekable<std::str::Chars>,
 ) -> Result<CssAttributeCompareType, ParseHtmlError> {
@@ -967,6 +979,18 @@ fn parse_css_attribute_rule(
     }
 }
 
+/// Parses a peekable chars iterator for a CSS selector refiner.
+/// CSS selector refiners are refering to the modifiers in a CSS selector that follow a ":",
+/// this includes things such a ":first-of-type".
+///
+/// # Example
+///
+/// ```ignore
+/// use hb_html::parsing::parse_css_refiner;
+/// use hb_html::objects::CssRefiner;
+/// let css_ref = parse_css_refiner(":first-of-type".chars().peekable()).expect();
+/// assert_eq!(css_ref, CssRefiner::FirstOfType);
+/// ```
 fn parse_css_refiner(
     chs: &mut std::iter::Peekable<std::str::Chars>,
 ) -> Result<CssRefiner, ParseHtmlError> {
@@ -1072,6 +1096,18 @@ fn parse_css_refiner(
     )));
 }
 
+/// Parses a peekable chars iterator for a number or function used in a CSS selector refiner.
+/// CSS selector refiners are refering to the modifiers in a CSS selector that follow a ":".
+/// The number or function that this parses is used in specific refiners such as ":nth-of-type".
+///
+/// # Example
+///
+/// ```ignore
+/// use hb_html::parsing::parse_css_refiner_number;
+/// use hb_html::objects::CssRefinerNumberType;
+/// let css_ref_num = parse_css_refiner_number("(2n+1)".chars().peekable()).expect();
+/// assert_eq!(css_ref_num, CssRefinerNumberType::Functional((2,1)));
+/// ```
 fn parse_css_refiner_number(raw_str: &str) -> Result<CssRefinerNumberType, ParseHtmlError> {
     let mut str_iter = raw_str.chars();
     match str_iter.next() {
@@ -1363,11 +1399,11 @@ mod parse_css_selector_tests {
                 })),
             ),
             (
-                "div.c1:first-child[attr][attr2=1].c2#first:nth-of-type(2n+1)",
+                "div.c1:first-child[attr][attr2=1].c2#first:nth-of-type(2n+1)#second",
                 Ok(Some(CssSelectorItem {
                     tag: Some("div".to_owned()),
                     classes: Some(vec!["c1".to_owned(), "c2".to_owned()]),
-                    ids: Some(vec!["first".to_owned()]),
+                    ids: Some(vec!["first".to_owned(), "second".to_owned()]),
                     refiners: Some(vec![
                         CssRefiner::FirstChild,
                         CssRefiner::NthOfType(CssRefinerNumberType::Functional((2, 1))),
@@ -1378,7 +1414,6 @@ mod parse_css_selector_tests {
                     ]),
                 })),
             ),
-            //More tests needed here!
         ];
 
         for t in tests {
