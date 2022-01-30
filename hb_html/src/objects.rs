@@ -2,6 +2,7 @@ use crate::error::ParseHtmlError;
 use crate::parsing::{parse_css_selector_rule, parse_html_tag, ParsedTagType};
 use crate::querying::{HtmlQuery, HtmlQueryable};
 use std::collections::HashMap;
+use std::fmt;
 use std::str::FromStr;
 
 /// Represents a HTML Tag including both attributes and contents.
@@ -157,6 +158,46 @@ impl FromStr for HtmlTag {
     }
 }
 
+impl fmt::Display for HtmlTag {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "<Tag: {} , IDs: {:?}, Classes: {:?}, Attributes: {:?}, Contents: {:?}>",
+            self.tag, self.ids, self.classes, self.attributes, self.contents,
+        )
+    }
+}
+
+impl HtmlTag {
+    /// Converts the HtmlTag into a string formatted as HTML.
+    fn to_html_string(&self) -> String {
+        let mut res = format!("<{}", self.tag);
+        if self.ids.len() > 0 {
+            res.push_str(" id=\"");
+            res.push_str(self.ids.join(" ").as_str());
+            res.push_str("\"")
+        }
+        if self.classes.len() > 0 {
+            res.push_str(" class=\"");
+            res.push_str(self.classes.join(" ").as_str());
+            res.push_str("\"")
+        }
+        if self.attributes.len() > 0 {
+            for attr in self.attributes.keys() {
+                res.push_str(format!(" {}=\"{}\"", attr, self.attributes[attr]).as_str());
+            }
+        }
+        res.push_str(">");
+        if self.contents.len() > 0 {
+            for content in &self.contents {
+                res.push_str(content.to_html_string().as_str())
+            }
+        }
+        res.push_str(format!("</{}>", self.tag).as_str());
+        res
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 /// Represents the different types of content that can be found inside HTML
 /// tags.
@@ -172,6 +213,42 @@ pub enum HtmlNode {
 impl HtmlQueryable for Vec<HtmlNode> {
     fn query(&self) -> HtmlQuery {
         HtmlQuery::new(self)
+    }
+}
+
+impl HtmlNode {
+    /// Converts the HtmlNode into a string formatted as HTML.
+    fn to_html_string(&self) -> String {
+        match &self {
+            HtmlNode::Comment(c) => format!("<!-- {} --!>", c),
+            HtmlNode::Tag(t) => t.to_html_string(),
+            HtmlNode::Text(t) => t.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod html_tag_tests {
+    use super::*;
+
+    #[test]
+    fn html_tag_to_html_string() {
+        let tests = vec![
+            "<div></div>",
+            "<div class=\"c1\"></div>",
+            "<div id=\"i1\"></div>",
+            "<div id=\"i1\" class=\"c1\"></div>",
+            "<div other=\"o1\"></div>",
+            "<div id=\"i1\" class=\"c1\" other=\"o1\"></div>",
+            "<div id=\"i1\" class=\"c1\" other=\"o1\">text</div>",
+            "<div id=\"i1\" class=\"c1\" other=\"o1\">text<p>more text</p></div>",
+        ];
+        for test in &tests {
+            assert_eq!(
+                test.parse::<HtmlTag>().unwrap().to_html_string().as_str(),
+                *test
+            );
+        }
     }
 }
 

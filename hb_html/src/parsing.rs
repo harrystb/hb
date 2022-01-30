@@ -31,10 +31,16 @@ pub fn parse_string(chs: &mut std::str::Chars) -> Result<(String, char), ParseHt
         }
         buffer.push(ch);
     }
-    return Err(ParseHtmlError::new(format!(
-        "end of string '{}' not found",
-        buffer
-    )));
+    if is_quoted {
+        return Err(ParseHtmlError::new(format!(
+            "Closing '\"' for string '{}' not found",
+            buffer
+        )));
+    }
+    if buffer.len() == 0 {
+        return Err(ParseHtmlError::with_msg("No chars found."));
+    }
+    Ok((buffer, ' '))
 }
 
 pub fn parse_until_one_of(
@@ -349,7 +355,10 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
         Some(ch) => {
             if ch == '/' {
                 return Ok(ParsedTagType::EndTag(
-                    parse_until_char(chs, '>', false)?.trim_end().to_owned(),
+                    parse_until_char(chs, '>', false)
+                        .map_err(|e| e.add_context(format!("Could not parse end tag")))?
+                        .trim_end()
+                        .to_owned(),
                 ));
             } else {
                 buffer.push(ch);
@@ -362,7 +371,11 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
         }
     }
     //Parse until we get the end of tag or a space
-    buffer.push_str(parse_until_one_of(chs, vec![' ', '>'], true)?.as_str());
+    buffer.push_str(
+        parse_until_one_of(chs, vec![' ', '>'], true)
+            .map_err(|e| e.add_context(format!("Could parse starting tag after {}", buffer)))?
+            .as_str(),
+    );
     if buffer.starts_with("!--") {
         // comment - parse the rest of the comment
         buffer.drain(0..3);
@@ -370,11 +383,18 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
             buffer.truncate(buffer.len() - 4);
             return Ok(ParsedTagType::Comment(buffer));
         }
-        buffer.push_str(parse_until_str(chs, &"-->", false)?.as_str());
+        buffer.push_str(
+            parse_until_str(chs, &"-->", false)
+                .map_err(|e| e.add_context("Could not parse comment tag"))?
+                .as_str(),
+        );
         return Ok(ParsedTagType::Comment(buffer));
     } else if buffer.starts_with("!DOCTYPE ") {
         buffer.clear();
-        return Ok(ParsedTagType::DocType(parse_until_char(chs, '>', false)?));
+        return Ok(ParsedTagType::DocType(
+            parse_until_char(chs, '>', false)
+                .map_err(|e| e.add_context("Could not parse DOCTYPE"))?,
+        ));
     }
     let (tag_str, ending) = buffer.split_at(buffer.len() - 1);
     let tag = tag_str.to_owned();
@@ -386,12 +406,23 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
         };
         loop {
             buffer.clear();
-            buffer.push(get_next_non_whitespace(chs)?);
+            buffer.push(get_next_non_whitespace(chs).map_err(|e| {
+                e.add_context(format!(
+                    "Could not get next attribute or '>' for node {}",
+                    node
+                ))
+            })?);
             if buffer == ">" {
                 //didn't get an attribute - just got the end of tag symbol
                 break;
             }
-            buffer.push_str(parse_until(chs, is_ws_eq_or_gt, true)?.as_str());
+            buffer.push_str(
+                parse_until(chs, is_ws_eq_or_gt, true)
+                    .map_err(|e| {
+                        e.add_context(format!("Could not get find end of attribute {}", buffer))
+                    })?
+                    .as_str(),
+            );
             let (attr_str, attr_ending) = buffer.split_at(buffer.len() - 1);
             if attr_ending == ">" {
                 if attr_str.len() > 0 {
@@ -455,7 +486,6 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
 mod parse_html_tag_tests {
     use super::*;
 
-    //TODO: How to test failing cases...
     #[test]
     fn parse_html_start_tag_test() {
         assert_eq!(
@@ -500,6 +530,30 @@ mod parse_html_tag_tests {
         assert_eq!(
             parse_html_tag(&mut "!-- something\n something else -->".chars()).unwrap(),
             ParsedTagType::Comment(" something\n something else ".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_html_tag_errors() {
+        assert_eq!(
+            parse_html_tag(&mut "div".chars()),
+            Err(ParseHtmlError::with_msg("Could parse starting tag after d because end of string 'iv' encountered before any end char '[' ', '>']' was found"))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "div class=c1".chars()),
+            Err(ParseHtmlError::with_msg("Could not get next attribute or '>' for node <Tag: div , IDs: [], Classes: [\"c1\"], Attributes: {}, Contents: []> because End found while consuming whitespace."))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "/div".chars()),
+            Err(ParseHtmlError::with_msg("Could not parse end tag because end of string 'div' encountered before end char '>' was found"))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "!-- div".chars()),
+            Err(ParseHtmlError::with_msg("Could not parse comment tag because end of string 'div' encountered before any end string '-->' was found"))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "!DOCTYPE".chars()),
+            Err(ParseHtmlError::with_msg("Could parse starting tag after ! because end of string 'DOCTYPE' encountered before any end char '[' ', '>']' was found"))
         );
     }
 }
