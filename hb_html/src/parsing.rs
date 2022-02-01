@@ -12,7 +12,7 @@ pub fn parse_string(chs: &mut std::str::Chars) -> Result<(String, char), ParseHt
     let mut buffer = String::with_capacity(50);
     let mut is_quoted = false;
     //consume leading whitespace
-    let ch = get_next_non_whitespace(chs)?;
+    let ch = get_next_non_whitespace(chs).map_err(|e| e.add_context("could not get string"))?;
     //check if first char is a "
     if ch == '"' {
         is_quoted = true;
@@ -176,7 +176,7 @@ pub fn parse_until<F: Fn(&char) -> bool>(
         buffer.push(ch);
     }
     return Err(ParseHtmlError::new(format!(
-        "end of string '{}' encountered before ending was found",
+        "end of string encountered without terminating character in string '{}'",
         buffer
     )));
 }
@@ -419,7 +419,7 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
             buffer.push_str(
                 parse_until(chs, is_ws_eq_or_gt, true)
                     .map_err(|e| {
-                        e.add_context(format!("Could not get find end of attribute {}", buffer))
+                        e.add_context(format!("Could not get find end of attribute '{}'", buffer))
                     })?
                     .as_str(),
             );
@@ -427,7 +427,7 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
             if attr_ending == ">" {
                 if attr_str.len() > 0 {
                     return Err(ParseHtmlError::new(format!(
-                        "Expected value for attribute '{}', got {} instead of '='.",
+                        "Expected value for attribute '{}', got '{}' instead of '='.",
                         attr_str, attr_ending
                     )));
                 }
@@ -436,16 +436,20 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
             }
             if attr_ending.chars().next().unwrap().is_ascii_whitespace() {
                 //clear all whitespace until we get a '='
-                let ch = get_next_non_whitespace(chs)?;
+                let ch = get_next_non_whitespace(chs).map_err(|e| {
+                    e.add_context(format!("could not get '=' after attribute '{}'", attr_str))
+                })?;
                 if ch != '=' {
                     return Err(ParseHtmlError::new(format!(
-                        "Expected value for attribute '{}', got {} instead of '='.",
+                        "Expected value for attribute '{}', got '{}' instead of '='.",
                         attr_str, ch
                     )));
                 }
             }
             //We have 'attr =' now need to read in the value
-            let (attr_value_string, attr_value_ending) = parse_string(chs)?;
+            let (attr_value_string, attr_value_ending) = parse_string(chs).map_err(|e| {
+                e.add_context(format!("could not get value of attribute '{}'", attr_str))
+            })?;
             if attr_str == "class" {
                 node.classes = parse_attibute_value(attr_value_string);
             } else if attr_str == "id" {
@@ -542,6 +546,24 @@ mod parse_html_tag_tests {
         assert_eq!(
             parse_html_tag(&mut "div class=c1".chars()),
             Err(ParseHtmlError::with_msg("Could not get next attribute or '>' for node <Tag: div , IDs: [], Classes: [\"c1\"], Attributes: {}, Contents: []> because End found while consuming whitespace."))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "div class   ".chars()),
+            Err(ParseHtmlError::with_msg("could not get '=' after attribute 'class' because End found while consuming whitespace."))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "div class".chars()),
+            Err(ParseHtmlError::with_msg("Could not get find end of attribute 'c' because end of string encountered without terminating character in string 'lass'"))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "div class id  ".chars()),
+            Err(ParseHtmlError::with_msg(
+                "Expected value for attribute 'class', got 'i' instead of '='."
+            ))
+        );
+        assert_eq!(
+            parse_html_tag(&mut "div class =  ".chars()),
+            Err(ParseHtmlError::with_msg("could not get value of attribute 'class' because could not get string because End found while consuming whitespace."))
         );
         assert_eq!(
             parse_html_tag(&mut "/div".chars()),
@@ -1596,8 +1618,6 @@ mod parse_css_selector_tests {
     }
 }
 
-//TODO: Doc strings and tests
-
 // *IMPROVEMENT IDEAS*
 
 // 1.
@@ -1610,4 +1630,4 @@ mod parse_css_selector_tests {
 // These functions should take a peekable, not a standard chars iterator
 
 // 2.
-// Improve error reporting to add addition context as it goes up
+// Make error messages more consistent in structure.
