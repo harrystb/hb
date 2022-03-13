@@ -3,5 +3,9 @@
 version = 3
 
 [[package]]
-name = "hb"
+name = "hb_html"
+version = "0.1.0"
+
+[[package]]
+name = "hb_parse"
 version = "0.1.0"
