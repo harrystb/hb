@@ -1,4 +1,4 @@
-use crate::objects::HtmlNode;
+use crate::objects::{CssRefiner, CssSelector, CssSelectorRelationship, HtmlNode};
 
 pub trait HtmlQueryable {
     fn query(&self) -> HtmlQuery;
@@ -49,8 +49,262 @@ impl<'a> HtmlQueryResult<'a> {
     }
 
     /// Checks if the node pointed to matches the CSS style selector provided.
-    fn matches(&self, selector: &str) -> bool {
-        todo!();
+    pub fn matches<T: Into<CssSelector>>(&self, selector: T) -> bool {
+        let selector = selector.into();
+        match selector {
+            CssSelector::Any => true,
+            CssSelector::Specific(v) => {
+                let mut passed = false;
+                for selector_rule in v {
+                    for rule in selector_rule.rules {
+                        match rule {
+                            CssSelectorRelationship::Current(selector_item) => {
+                                // make sure it is a Html tag node
+                                let tag_node = match self.get_node() {
+                                    None => {
+                                        break;
+                                    }
+                                    Some(n) => match n {
+                                        HtmlNode::Tag(t) => t,
+                                        // Not a tag node, don't care what it is otherwise
+                                        _ => {
+                                            break;
+                                        }
+                                    },
+                                };
+                                //Compare the tag selector
+                                match selector_item.tag {
+                                    None => (),
+                                    Some(tag) => {
+                                        if tag != tag_node.tag {
+                                            //failed to match the tag, this selector rule failed
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // check selector's classes
+                                match selector_item.classes {
+                                    None => (),
+                                    Some(classes) => {
+                                        let mut all_found = true;
+                                        for class in classes {
+                                            let mut found = false;
+                                            for tag_class in tag_node.classes {
+                                                if tag_class == class {
+                                                    found = true;
+                                                    break;
+                                                }
+                                            }
+                                            //could not find one of the classes
+                                            if found != true {
+                                                all_found = false;
+                                                break;
+                                            }
+                                        }
+                                        //failed to find the classes, this selector rule failed
+                                        if all_found != true {
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // check selector's ids
+                                match selector_item.ids {
+                                    None => (),
+                                    Some(ids) => {
+                                        let mut all_found = true;
+                                        for id in ids {
+                                            let mut found = false;
+                                            for tag_id in tag_node.ids {
+                                                if tag_id == id {
+                                                    found = true;
+                                                    break;
+                                                }
+                                            }
+                                            //could not find one of the ids
+                                            if found != true {
+                                                all_found = false;
+                                                break;
+                                            }
+                                        }
+                                        //failed to find the ids, this selector rule failed
+                                        if all_found != true {
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                //check selector's refiners
+                                match selector_item.refiners {
+                                    None => (),
+                                    Some(refiners) => {
+                                        let mut all_found = true;
+                                        for refiner in refiners {
+                                            match refiner {
+                                                CssRefiner::Checked => {
+                                                    if tag_node.tag == "option".to_owned() {
+                                                        if !tag_node
+                                                            .attributes
+                                                            .contains_key(&"selected".to_owned())
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    } else if tag_node.tag == "input".to_owned() {
+                                                        //check type
+                                                        let type_str = "type".to_owned();
+                                                        if !tag_node
+                                                            .attributes
+                                                            .contains_key(&type_str)
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        if tag_node.attributes[&type_str]
+                                                            != "checkbox".to_owned()
+                                                            || tag_node.attributes[&type_str]
+                                                                != "radio".to_owned()
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        //check if it is conatains the checked attribute - don't care about the value as it can be many different things
+                                                        if !tag_node
+                                                            .attributes
+                                                            .contains_key(&"checked".to_owned())
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    } else {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssRefiner::Default => {
+                                                    // same as checked because this html parser does not have changing states
+                                                    if tag_node.tag == "option".to_owned() {
+                                                        if !tag_node
+                                                            .attributes
+                                                            .contains_key(&"selected".to_owned())
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    } else if tag_node.tag == "input".to_owned() {
+                                                        //check type
+                                                        let type_str = "type".to_owned();
+                                                        if !tag_node
+                                                            .attributes
+                                                            .contains_key(&type_str)
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        if tag_node.attributes[&type_str]
+                                                            != "checkbox".to_owned()
+                                                            || tag_node.attributes[&type_str]
+                                                                != "radio".to_owned()
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        //check if it is conatains the checked attribute - don't care about the value as it can be many different things
+                                                        if !tag_node
+                                                            .attributes
+                                                            .contains_key(&"checked".to_owned())
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    } else {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssRefiner::Disabled => {
+                                                    // disabled attribute present on these tags
+                                                    if tag_node.tag != "option".to_owned()
+                                                        && tag_node.tag != "input".to_owned()
+                                                        && tag_node.tag != "select".to_owned()
+                                                        && tag_node.tag != "button".to_owned()
+                                                        && tag_node.tag != "fieldset".to_owned()
+                                                        && tag_node.tag != "optgroup".to_owned()
+                                                        && tag_node.tag != "textarea".to_owned()
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if !tag_node
+                                                        .attributes
+                                                        .contains_key(&"disabled".to_owned())
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssRefiner::Enabled => {
+                                                    // disabled attribute not present on these tags
+                                                    if tag_node.tag != "option".to_owned()
+                                                        && tag_node.tag != "input".to_owned()
+                                                        && tag_node.tag != "select".to_owned()
+                                                        && tag_node.tag != "button".to_owned()
+                                                        && tag_node.tag != "fieldset".to_owned()
+                                                        && tag_node.tag != "optgroup".to_owned()
+                                                        && tag_node.tag != "textarea".to_owned()
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if tag_node
+                                                        .attributes
+                                                        .contains_key(&"disabled".to_owned())
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssRefiner::Invalid => (),
+                                                CssRefiner::Valid => (),
+                                                CssRefiner::Optional => (),
+                                                CssRefiner::Required => (),
+                                                CssRefiner::OutOfRange => (),
+                                                CssRefiner::ReadOnly => (),
+                                                CssRefiner::ReadWrite => (),
+                                                CssRefiner::Empty => (),
+                                                CssRefiner::FirstChild => (),
+                                                CssRefiner::LastChild => (),
+                                                CssRefiner::NthChild(num) => (),
+                                                CssRefiner::NthLastChild(num) => (),
+                                                CssRefiner::OnlyChild => (),
+                                                CssRefiner::FirstOfType => (),
+                                                CssRefiner::LastOfType => (),
+                                                CssRefiner::NthOfType(num) => (),
+                                                CssRefiner::NthLastOfType(num) => (),
+                                                CssRefiner::OnlyOfType => (),
+                                                CssRefiner::Not(not_selector) => {
+                                                    if self.matches(not_selector) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssRefiner::Root => (),
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            CssSelectorRelationship::Parent(selector_item) => (),
+                            CssSelectorRelationship::Ancestor(selector_item) => (),
+                            CssSelectorRelationship::PreviousSibling(selector_item) => (),
+                            CssSelectorRelationship::PreviousSiblingOnce(selector_item) => (),
+                        }
+                    }
+                }
+                passed
+            }
+        }
     }
 }
 
@@ -139,7 +393,7 @@ impl<'a> HtmlQuery<'a> {
 
     /// Search through either the root HTML nodes if there are no results stored,
     /// otherwise search through the current results.
-    pub fn find(&self, tag: &str) -> &HtmlQuery {
+    pub fn find(&self, selector: CssSelector) -> &HtmlQuery {
         todo!();
     }
 }
