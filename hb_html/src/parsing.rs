@@ -1082,16 +1082,10 @@ fn parse_css_refiner(
         return Ok(CssRefiner::Disabled);
     } else if refiner == "enabled" {
         return Ok(CssRefiner::Enabled);
-    } else if refiner == "invalid" {
-        return Ok(CssRefiner::Invalid);
-    } else if refiner == "valid" {
-        return Ok(CssRefiner::Valid);
     } else if refiner == "optional" {
         return Ok(CssRefiner::Optional);
     } else if refiner == "required" {
         return Ok(CssRefiner::Required);
-    } else if refiner == "out-of-range" {
-        return Ok(CssRefiner::OutOfRange);
     } else if refiner == "read-only" {
         return Ok(CssRefiner::ReadOnly);
     } else if refiner == "read-write" {
@@ -1284,11 +1278,8 @@ mod parse_css_selector_tests {
             ("default", CssRefiner::Default),
             ("disabled", CssRefiner::Disabled),
             ("enabled", CssRefiner::Enabled),
-            ("invalid", CssRefiner::Invalid),
-            ("valid", CssRefiner::Valid),
             ("optional", CssRefiner::Optional),
             ("required", CssRefiner::Required),
-            ("out-of-range", CssRefiner::OutOfRange),
             ("read-only", CssRefiner::ReadOnly),
             ("read-write", CssRefiner::ReadWrite),
             ("empty", CssRefiner::Empty),

@@ -1,4 +1,7 @@
-use crate::objects::{CssRefiner, CssSelector, CssSelectorRelationship, HtmlNode};
+use crate::objects::{
+    CssRefiner, CssRefinerNumberType, CssSelector, CssSelectorRelationship, HtmlNode,
+};
+use std::convert::TryFrom;
 
 pub trait HtmlQueryable {
     fn query(&self) -> HtmlQuery;
@@ -151,6 +154,13 @@ impl<'a> HtmlQueryResult<'a> {
                                                             all_found = false;
                                                             break;
                                                         }
+                                                        if tag_node.attributes
+                                                            [&"selected".to_owned()]
+                                                            == "false"
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
                                                     } else if tag_node.tag == "input".to_owned() {
                                                         //check type
                                                         let type_str = "type".to_owned();
@@ -173,6 +183,13 @@ impl<'a> HtmlQueryResult<'a> {
                                                         if !tag_node
                                                             .attributes
                                                             .contains_key(&"checked".to_owned())
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        if tag_node.attributes
+                                                            [&"checked".to_owned()]
+                                                            == "false"
                                                         {
                                                             all_found = false;
                                                             break;
@@ -192,6 +209,13 @@ impl<'a> HtmlQueryResult<'a> {
                                                             all_found = false;
                                                             break;
                                                         }
+                                                        if tag_node.attributes
+                                                            [&"selected".to_owned()]
+                                                            == "false"
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
                                                     } else if tag_node.tag == "input".to_owned() {
                                                         //check type
                                                         let type_str = "type".to_owned();
@@ -214,6 +238,13 @@ impl<'a> HtmlQueryResult<'a> {
                                                         if !tag_node
                                                             .attributes
                                                             .contains_key(&"checked".to_owned())
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        if tag_node.attributes
+                                                            [&"checked".to_owned()]
+                                                            == "false"
                                                         {
                                                             all_found = false;
                                                             break;
@@ -243,6 +274,12 @@ impl<'a> HtmlQueryResult<'a> {
                                                         all_found = false;
                                                         break;
                                                     }
+                                                    if tag_node.attributes[&"disabled".to_owned()]
+                                                        == "false"
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
                                                 }
                                                 CssRefiner::Enabled => {
                                                     // disabled attribute not present on these tags
@@ -261,22 +298,405 @@ impl<'a> HtmlQueryResult<'a> {
                                                         .attributes
                                                         .contains_key(&"disabled".to_owned())
                                                     {
+                                                        if tag_node.attributes
+                                                            [&"disabled".to_owned()]
+                                                            != "false"
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::Optional => {
+                                                    // required attribute not present on these tags
+                                                    if tag_node.tag != "input".to_owned()
+                                                        && tag_node.tag != "select".to_owned()
+                                                        && tag_node.tag != "textarea".to_owned()
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if tag_node
+                                                        .attributes
+                                                        .contains_key(&"required".to_owned())
+                                                    {
+                                                        if tag_node.attributes
+                                                            [&"required".to_owned()]
+                                                            != "false"
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::Required => {
+                                                    // required attribute present on these tags
+                                                    if tag_node.tag != "input".to_owned()
+                                                        && tag_node.tag != "select".to_owned()
+                                                        && tag_node.tag != "textarea".to_owned()
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if !tag_node
+                                                        .attributes
+                                                        .contains_key(&"required".to_owned())
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if tag_node.attributes[&"required".to_owned()]
+                                                        == "false"
+                                                    {
                                                         all_found = false;
                                                         break;
                                                     }
                                                 }
-                                                CssRefiner::Invalid => (),
-                                                CssRefiner::Valid => (),
-                                                CssRefiner::Optional => (),
-                                                CssRefiner::Required => (),
-                                                CssRefiner::OutOfRange => (),
-                                                CssRefiner::ReadOnly => (),
-                                                CssRefiner::ReadWrite => (),
-                                                CssRefiner::Empty => (),
-                                                CssRefiner::FirstChild => (),
-                                                CssRefiner::LastChild => (),
-                                                CssRefiner::NthChild(num) => (),
-                                                CssRefiner::NthLastChild(num) => (),
+                                                CssRefiner::ReadOnly => {
+                                                    // editable tags with read-only attribute or
+                                                    // non-standard editable with contenteditable="" or "true"
+                                                    if tag_node.tag == "input".to_owned()
+                                                        || tag_node.tag == "textarea".to_owned()
+                                                    {
+                                                        if !tag_node
+                                                            .attributes
+                                                            .contains_key(&"read-only".to_owned())
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        if tag_node.attributes
+                                                            [&"read-only".to_owned()]
+                                                            == "false"
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    } else {
+                                                        if tag_node.attributes.contains_key(
+                                                            &"contenteditable".to_owned(),
+                                                        ) {
+                                                            if tag_node.attributes
+                                                                [&"contenteditable".to_owned()]
+                                                                != "false"
+                                                            {
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::ReadWrite => {
+                                                    // editable tags with read-only attribute or
+                                                    // non-standard editable with contenteditable="" or "true"
+                                                    if tag_node.tag == "input".to_owned()
+                                                        || tag_node.tag == "textarea".to_owned()
+                                                    {
+                                                        if tag_node
+                                                            .attributes
+                                                            .contains_key(&"read-only".to_owned())
+                                                        {
+                                                            if tag_node.attributes
+                                                                [&"read-only".to_owned()]
+                                                                != "false"
+                                                            {
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                    } else {
+                                                        if !tag_node.attributes.contains_key(
+                                                            &"contenteditable".to_owned(),
+                                                        ) {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        if tag_node.attributes
+                                                            [&"contenteditable".to_owned()]
+                                                            == "false"
+                                                        {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::Empty => {
+                                                    for content in tag_node.contents {
+                                                        match content {
+                                                            HtmlNode::Tag(_) => {
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                            HtmlNode::Comment(_) => (),
+                                                            HtmlNode::Text(s) => {
+                                                                let mut found_non_whitespace =
+                                                                    false;
+                                                                for c in s.chars() {
+                                                                    if !c.is_ascii_whitespace() {
+                                                                        found_non_whitespace = true;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                if found_non_whitespace {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::FirstChild => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    if path_point.1 != 0 {
+                                                        //not the first index, check if there are any tags before it
+                                                        let mut found_extra_tag = false;
+                                                        for (i, node) in
+                                                            path_point.0.iter().enumerate()
+                                                        {
+                                                            if i == path_point.1 {
+                                                                break;
+                                                            }
+                                                            match node {
+                                                                HtmlNode::Tag(_) => {
+                                                                    found_extra_tag = true;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                        if found_extra_tag {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::LastChild => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    if path_point.1 != path_point.0.len() - 1 {
+                                                        //not the last index, check if there are any tag nodes after it
+                                                        let mut iter = path_point.0.iter();
+                                                        iter.nth(path_point.1); //consume up to the pointed to object
+                                                        let mut found_extra_tag = false;
+                                                        for node in iter {
+                                                            match node {
+                                                                HtmlNode::Tag(_) => {
+                                                                    found_extra_tag = true;
+                                                                    break;
+                                                                }
+                                                                _ => (),
+                                                            }
+                                                        }
+                                                        if found_extra_tag {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::NthChild(num) => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    let mut tag_count = 0;
+                                                    let number_from_start;
+                                                    for (i, child) in
+                                                        path_point.0.iter().enumerate()
+                                                    {
+                                                        match child {
+                                                            HtmlNode::Tag(_) => {
+                                                                tag_count += 1;
+                                                                if i == path_point.1 {
+                                                                    number_from_start = tag_count;
+                                                                }
+                                                            }
+                                                            _ => (),
+                                                        }
+                                                    }
+                                                    match num {
+                                                        CssRefinerNumberType::Even => {
+                                                            if number_from_start % 2 != 0 {
+                                                                // index 0 == 1st
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Odd => {
+                                                            if number_from_start % 2 != 1 {
+                                                                // index 0 == 1st
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Specific(val) => {
+                                                            if number_from_start != val {
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Functional((
+                                                            step,
+                                                            offset,
+                                                        )) => {
+                                                            let number_from_start_i32 =
+                                                                match i32::try_from(
+                                                                    number_from_start,
+                                                                ) {
+                                                                    // + 1 to convert to number from start
+                                                                    Err(_) => {
+                                                                        //Path too large to use with functional
+                                                                        all_found = false;
+                                                                        break;
+                                                                    }
+                                                                    Ok(a) => a,
+                                                                };
+                                                            if step < 0 {
+                                                                if number_from_start_i32 - offset
+                                                                    > 0
+                                                                {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                                if (number_from_start_i32 - offset)
+                                                                    % step
+                                                                    == 0
+                                                                {
+                                                                    // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            } else if step == 0 {
+                                                                if number_from_start_i32 != offset {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            } else {
+                                                                if number_from_start_i32 - offset
+                                                                    < 0
+                                                                {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                                if (number_from_start_i32 - offset)
+                                                                    % step
+                                                                    == 0
+                                                                {
+                                                                    // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::NthLastChild(num) => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    let mut tag_count = 0;
+                                                    let number_from_end;
+                                                    for (i, child) in
+                                                        path_point.0.iter().rev().enumerate()
+                                                    {
+                                                        match child {
+                                                            HtmlNode::Tag(_) => {
+                                                                tag_count += 1;
+                                                                if i == path_point.1 {
+                                                                    number_from_end = tag_count;
+                                                                }
+                                                            }
+                                                            _ => (),
+                                                        }
+                                                    }
+                                                    match num {
+                                                        CssRefinerNumberType::Even => {
+                                                            if number_from_end % 2 != 0 {
+                                                                // index 0 == 1st
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Odd => {
+                                                            if number_from_end % 2 != 1 {
+                                                                // index 0 == 1st
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Specific(val) => {
+                                                            if number_from_end != val {
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Functional((
+                                                            step,
+                                                            offset,
+                                                        )) => {
+                                                            let number_from_end_i32 =
+                                                                match i32::try_from(number_from_end)
+                                                                {
+                                                                    Err(_) => {
+                                                                        //Path too large to use with functional
+                                                                        all_found = false;
+                                                                        break;
+                                                                    }
+                                                                    Ok(a) => a,
+                                                                };
+                                                            if step < 0 {
+                                                                if number_from_end_i32 - offset > 0
+                                                                {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                                if (number_from_end_i32 - offset)
+                                                                    % step
+                                                                    == 0
+                                                                {
+                                                                    // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            } else if step == 0 {
+                                                                if number_from_end_i32 != offset {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            } else {
+                                                                if number_from_end_i32 - offset < 0
+                                                                {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                                if (number_from_end_i32 - offset)
+                                                                    % step
+                                                                    == 0
+                                                                {
+                                                                    // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                                 CssRefiner::OnlyChild => (),
                                                 CssRefiner::FirstOfType => (),
                                                 CssRefiner::LastOfType => (),
