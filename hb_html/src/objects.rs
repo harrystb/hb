@@ -2,6 +2,7 @@ use crate::error::ParseHtmlError;
 use crate::parsing::{parse_css_selector_rule, parse_html_tag, ParsedTagType};
 use crate::querying::{HtmlQuery, HtmlQueryable};
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::fmt;
 use std::str::FromStr;
 
@@ -463,6 +464,27 @@ pub enum CssSelector {
 impl FromStr for CssSelector {
     type Err = ParseHtmlError;
     fn from_str(selector: &str) -> Result<Self, <Self as std::str::FromStr>::Err> {
+        if selector == "*" {
+            return Ok(CssSelector::Any);
+        }
+        let mut rules: Vec<CssSelectorRule> = vec![];
+        for s in selector.split(",").map(|x| x.trim()) {
+            //parse rule and add to rules;
+            rules.push(parse_css_selector_rule(s)?);
+        }
+        if rules.len() > 0 {
+            return Ok(CssSelector::Specific(rules));
+        }
+        Err(ParseHtmlError::with_msg(format!(
+            "No valid CSS selector found in {}",
+            selector
+        )))
+    }
+}
+
+impl TryFrom<&str> for CssSelector {
+    type Error = ParseHtmlError;
+    fn try_from(selector: &str) -> Result<Self, Self::Error> {
         if selector == "*" {
             return Ok(CssSelector::Any);
         }

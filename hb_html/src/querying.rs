@@ -1,7 +1,8 @@
 use crate::objects::{
-    CssRefiner, CssRefinerNumberType, CssSelector, CssSelectorRelationship, HtmlNode,
+    CssAttributeCompareType, CssRefiner, CssRefinerNumberType, CssSelector,
+    CssSelectorRelationship, HtmlNode,
 };
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 pub trait HtmlQueryable {
     fn query(&self) -> HtmlQuery;
@@ -93,8 +94,8 @@ impl<'a> HtmlQueryResult<'a> {
                                         let mut all_found = true;
                                         for class in classes {
                                             let mut found = false;
-                                            for tag_class in tag_node.classes {
-                                                if tag_class == class {
+                                            for tag_class in &tag_node.classes {
+                                                if *tag_class == class {
                                                     found = true;
                                                     break;
                                                 }
@@ -119,8 +120,8 @@ impl<'a> HtmlQueryResult<'a> {
                                         let mut all_found = true;
                                         for id in ids {
                                             let mut found = false;
-                                            for tag_id in tag_node.ids {
-                                                if tag_id == id {
+                                            for tag_id in &tag_node.ids {
+                                                if *tag_id == id {
                                                     found = true;
                                                     break;
                                                 }
@@ -421,7 +422,7 @@ impl<'a> HtmlQueryResult<'a> {
                                                     }
                                                 }
                                                 CssRefiner::Empty => {
-                                                    for content in tag_node.contents {
+                                                    for content in &tag_node.contents {
                                                         match content {
                                                             HtmlNode::Tag(_) => {
                                                                 all_found = false;
@@ -467,6 +468,7 @@ impl<'a> HtmlQueryResult<'a> {
                                                                     found_extra_tag = true;
                                                                     break;
                                                                 }
+                                                                _ => (),
                                                             }
                                                         }
                                                         if found_extra_tag {
@@ -512,7 +514,7 @@ impl<'a> HtmlQueryResult<'a> {
                                                         Some(p) => p,
                                                     };
                                                     let mut tag_count = 0;
-                                                    let number_from_start;
+                                                    let mut number_from_start = 0;
                                                     for (i, child) in
                                                         path_point.0.iter().enumerate()
                                                     {
@@ -521,6 +523,7 @@ impl<'a> HtmlQueryResult<'a> {
                                                                 tag_count += 1;
                                                                 if i == path_point.1 {
                                                                     number_from_start = tag_count;
+                                                                    break;
                                                                 }
                                                             }
                                                             _ => (),
@@ -610,16 +613,18 @@ impl<'a> HtmlQueryResult<'a> {
                                                         }
                                                         Some(p) => p,
                                                     };
+                                                    let pos = path_point.0.len() - path_point.1 - 1;
                                                     let mut tag_count = 0;
-                                                    let number_from_end;
+                                                    let mut number_from_end = 0;
                                                     for (i, child) in
                                                         path_point.0.iter().rev().enumerate()
                                                     {
                                                         match child {
                                                             HtmlNode::Tag(_) => {
                                                                 tag_count += 1;
-                                                                if i == path_point.1 {
+                                                                if i == pos {
                                                                     number_from_end = tag_count;
+                                                                    break;
                                                                 }
                                                             }
                                                             _ => (),
@@ -697,20 +702,433 @@ impl<'a> HtmlQueryResult<'a> {
                                                         }
                                                     }
                                                 }
-                                                CssRefiner::OnlyChild => (),
-                                                CssRefiner::FirstOfType => (),
-                                                CssRefiner::LastOfType => (),
-                                                CssRefiner::NthOfType(num) => (),
-                                                CssRefiner::NthLastOfType(num) => (),
-                                                CssRefiner::OnlyOfType => (),
+                                                CssRefiner::OnlyChild => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    let mut found_other = false;
+                                                    for (i, child) in
+                                                        path_point.0.iter().enumerate()
+                                                    {
+                                                        match child {
+                                                            HtmlNode::Tag(_) => {
+                                                                if i != path_point.1 {
+                                                                    found_other = true;
+                                                                    break;
+                                                                }
+                                                            }
+                                                            _ => (),
+                                                        }
+                                                    }
+                                                    if found_other {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssRefiner::FirstOfType => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    let mut found_other = false;
+                                                    for (i, child) in
+                                                        path_point.0.iter().enumerate()
+                                                    {
+                                                        match child {
+                                                            HtmlNode::Tag(t) => {
+                                                                //first tag that matches
+                                                                if t.tag == tag_node.tag {
+                                                                    // fail if it is not the one we are looking at
+                                                                    if i != path_point.1 {
+                                                                        found_other = true;
+                                                                    }
+                                                                    break;
+                                                                }
+                                                            }
+                                                            _ => (),
+                                                        }
+                                                    }
+                                                    if found_other {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssRefiner::LastOfType => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    let pos = path_point.0.len() - path_point.1 - 1;
+                                                    let mut found_other = false;
+                                                    for (i, child) in
+                                                        path_point.0.iter().rev().enumerate()
+                                                    {
+                                                        match child {
+                                                            HtmlNode::Tag(t) => {
+                                                                //first tag that matches
+                                                                if t.tag == tag_node.tag {
+                                                                    // fail if it is not the one we are looking at
+                                                                    if i != pos {
+                                                                        found_other = true;
+                                                                    }
+                                                                    break;
+                                                                }
+                                                            }
+                                                            _ => (),
+                                                        }
+                                                    }
+                                                    if found_other {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssRefiner::NthOfType(num) => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    let mut tag_count = 0;
+                                                    let mut number_from_start = 0;
+                                                    for (i, child) in
+                                                        path_point.0.iter().enumerate()
+                                                    {
+                                                        match child {
+                                                            HtmlNode::Tag(t) => {
+                                                                if t.tag == tag_node.tag {
+                                                                    tag_count += 1;
+                                                                }
+                                                                if i == path_point.1 {
+                                                                    number_from_start = tag_count;
+                                                                    break;
+                                                                }
+                                                            }
+                                                            _ => (),
+                                                        }
+                                                    }
+                                                    match num {
+                                                        CssRefinerNumberType::Even => {
+                                                            if number_from_start % 2 != 0 {
+                                                                // index 0 == 1st
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Odd => {
+                                                            if number_from_start % 2 != 1 {
+                                                                // index 0 == 1st
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Specific(val) => {
+                                                            if number_from_start != val {
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Functional((
+                                                            step,
+                                                            offset,
+                                                        )) => {
+                                                            let number_from_end_i32 =
+                                                                match i32::try_from(
+                                                                    number_from_start,
+                                                                ) {
+                                                                    Err(_) => {
+                                                                        //Path too large to use with functional
+                                                                        all_found = false;
+                                                                        break;
+                                                                    }
+                                                                    Ok(a) => a,
+                                                                };
+                                                            if step < 0 {
+                                                                if number_from_end_i32 - offset > 0
+                                                                {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                                if (number_from_end_i32 - offset)
+                                                                    % step
+                                                                    == 0
+                                                                {
+                                                                    // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            } else if step == 0 {
+                                                                if number_from_end_i32 != offset {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            } else {
+                                                                if number_from_end_i32 - offset < 0
+                                                                {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                                if (number_from_end_i32 - offset)
+                                                                    % step
+                                                                    == 0
+                                                                {
+                                                                    // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::NthLastOfType(num) => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    let pos = path_point.0.len() - path_point.1 - 1;
+                                                    let mut tag_count = 0;
+                                                    let mut number_from_end = 0;
+                                                    for (i, child) in
+                                                        path_point.0.iter().rev().enumerate()
+                                                    {
+                                                        match child {
+                                                            HtmlNode::Tag(t) => {
+                                                                if t.tag == tag_node.tag {
+                                                                    tag_count += 1;
+                                                                }
+                                                                if i == pos {
+                                                                    number_from_end = tag_count;
+                                                                    break;
+                                                                }
+                                                            }
+                                                            _ => (),
+                                                        }
+                                                    }
+                                                    match num {
+                                                        CssRefinerNumberType::Even => {
+                                                            if number_from_end % 2 != 0 {
+                                                                // index 0 == 1st
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Odd => {
+                                                            if number_from_end % 2 != 1 {
+                                                                // index 0 == 1st
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Specific(val) => {
+                                                            if number_from_end != val {
+                                                                all_found = false;
+                                                                break;
+                                                            }
+                                                        }
+                                                        CssRefinerNumberType::Functional((
+                                                            step,
+                                                            offset,
+                                                        )) => {
+                                                            let number_from_end_i32 =
+                                                                match i32::try_from(number_from_end)
+                                                                {
+                                                                    Err(_) => {
+                                                                        //Path too large to use with functional
+                                                                        all_found = false;
+                                                                        break;
+                                                                    }
+                                                                    Ok(a) => a,
+                                                                };
+                                                            if step < 0 {
+                                                                if number_from_end_i32 - offset > 0
+                                                                {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                                if (number_from_end_i32 - offset)
+                                                                    % step
+                                                                    == 0
+                                                                {
+                                                                    // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            } else if step == 0 {
+                                                                if number_from_end_i32 != offset {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            } else {
+                                                                if number_from_end_i32 - offset < 0
+                                                                {
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                                if (number_from_end_i32 - offset)
+                                                                    % step
+                                                                    == 0
+                                                                {
+                                                                    // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
+                                                                    all_found = false;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                CssRefiner::OnlyOfType => {
+                                                    let path_point = match self.path.last() {
+                                                        None => {
+                                                            all_found = false;
+                                                            break;
+                                                        }
+                                                        Some(p) => p,
+                                                    };
+                                                    let mut found_other = false;
+                                                    for (i, child) in
+                                                        path_point.0.iter().enumerate()
+                                                    {
+                                                        match child {
+                                                            HtmlNode::Tag(t) => {
+                                                                if t.tag == tag_node.tag {
+                                                                    if i != path_point.1 {
+                                                                        found_other = true;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
+                                                            _ => (),
+                                                        }
+                                                    }
+                                                    if found_other {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
                                                 CssRefiner::Not(not_selector) => {
                                                     if self.matches(not_selector) {
                                                         all_found = false;
                                                         break;
                                                     }
                                                 }
-                                                CssRefiner::Root => (),
+                                                CssRefiner::Root => {
+                                                    if self.path.len() != 1 {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
                                             }
+                                        }
+                                        if all_found != true {
+                                            break;
+                                        }
+                                    }
+                                }
+                                match selector_item.attributes {
+                                    None => (),
+                                    Some(attr_comps) => {
+                                        let mut all_found = true;
+                                        for attr_comp in attr_comps {
+                                            match attr_comp {
+                                                CssAttributeCompareType::Present(a) => {
+                                                    if !tag_node.attributes.contains_key(&a) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssAttributeCompareType::Equals((a, val)) => {
+                                                    if !tag_node.attributes.contains_key(&a) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if tag_node.attributes[&a] != val {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssAttributeCompareType::Contains((a, val)) => {
+                                                    if !tag_node.attributes.contains_key(&a) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if !tag_node.attributes[&a].contains(&val) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssAttributeCompareType::BeginsWith((a, val)) => {
+                                                    if !tag_node.attributes.contains_key(&a) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if !tag_node.attributes[&a].starts_with(&val) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssAttributeCompareType::EqualsOrBeingsWith((
+                                                    a,
+                                                    val,
+                                                )) => {
+                                                    if !tag_node.attributes.contains_key(&a) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if tag_node.attributes[&a] != val
+                                                        && !tag_node.attributes[&a]
+                                                            .starts_with(&val)
+                                                    {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssAttributeCompareType::EndsWith((a, val)) => {
+                                                    if !tag_node.attributes.contains_key(&a) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    if !tag_node.attributes[&a].ends_with(&val) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                                CssAttributeCompareType::ContainsWord((a, val)) => {
+                                                    if !tag_node.attributes.contains_key(&a) {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                    let mut word_found = false;
+                                                    for word in
+                                                        tag_node.attributes[&a].split_whitespace()
+                                                    {
+                                                        if word == val {
+                                                            word_found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    if !word_found {
+                                                        all_found = false;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if all_found != true {
+                                            break;
                                         }
                                     }
                                 }
@@ -813,7 +1231,7 @@ impl<'a> HtmlQuery<'a> {
 
     /// Search through either the root HTML nodes if there are no results stored,
     /// otherwise search through the current results.
-    pub fn find(&self, selector: CssSelector) -> &HtmlQuery {
+    pub fn find<T: TryInto<CssSelector>>(&self, selector: T) -> &HtmlQuery {
         todo!();
     }
 }
