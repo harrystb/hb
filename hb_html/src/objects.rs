@@ -292,7 +292,7 @@ impl HtmlDocument {
     }
     pub fn find(&self, selector: &str) -> HtmlQuery {
         let mut query = self.query();
-        query.find(selector);
+        query.find_str(selector);
         query
     }
 }

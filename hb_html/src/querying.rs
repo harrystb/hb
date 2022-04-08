@@ -1,9 +1,10 @@
-use crate::error::HtmlMatchError;
+use crate::error::{HtmlMatchError, ParseHtmlError};
 use crate::objects::{
     CssAttributeCompareType, CssRefiner, CssRefinerNumberType, CssSelector, CssSelectorItem,
-    CssSelectorRelationship, HtmlNode,
+    CssSelectorRelationship, HtmlDocument, HtmlNode,
 };
 use std::convert::{TryFrom, TryInto};
+use std::str::FromStr;
 
 pub trait HtmlQueryable {
     fn query(&self) -> HtmlQuery;
@@ -39,24 +40,79 @@ impl<'a> HtmlQueryResult<'a> {
         return Some(&path_point.0[path_point.1]);
     }
 
-    pub fn move_to_parent(&mut self) -> Result<(), HtmlMatchError> {
+    pub fn move_to_parent(&mut self) -> Option<()> {
         if self.path.len() <= 1 {
-            return Err(HtmlMatchError::with_msg("No parent to move to."));
+            return None;
         }
         self.path.pop();
-        Ok(())
+        Some(())
     }
-    pub fn move_to_previous_sibling(&mut self) -> Result<(), HtmlMatchError> {
+    pub fn move_to_previous_sibling(&mut self) -> Option<()> {
         if self.path.len() == 0 {
-            return Err(HtmlMatchError::with_msg("No siblings to move to."));
+            return None;
         }
         if self.path[self.path.len() - 1].1 == 0 {
-            return Err(HtmlMatchError::with_msg("No siblings to move to."));
+            return None;
         }
         let mut end = self.path.pop().unwrap();
         end.1 = end.1 - 1;
         self.path.push(end);
-        Ok(())
+        Some(())
+    }
+    pub fn move_to_next_sibling(&mut self) -> Option<()> {
+        if self.path.len() == 0 {
+            return None;
+        }
+        let (v, i) = self.path[self.path.len() - 1];
+        if i + 1 == v.len() {
+            return None;
+        }
+        let mut end = self.path.pop().unwrap();
+        end.1 = end.1 + 1;
+        self.path.push(end);
+        Some(())
+    }
+    pub fn move_to_first_child(&'a mut self) -> Option<()> {
+        if self.path.len() == 0 {
+            return None;
+        }
+        let (v, i) = self.path[self.path.len() - 1];
+        match v[i] {
+            HtmlNode::Tag(t) => {
+                if t.contents.len() > 0 {
+                    self.path.push((&t.contents, 0));
+                    Some(())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn walk_next(&'a mut self) -> Option<()> {
+        //attempt to move to first child
+        match self.move_to_first_child() {
+            Some(a) => Some(a),
+            None => {
+                // next try go to next sibling
+                match self.move_to_next_sibling() {
+                    Some(a) => Some(a),
+                    None => loop {
+                        // now to go to parents next sibling, and keep going up until the end or a next sibling is found
+                        match self.move_to_parent() {
+                            None => {
+                                return None;
+                            }
+                            Some(_) => match self.move_to_next_sibling() {
+                                Some(a) => return Some(a),
+                                None => (),
+                            },
+                        }
+                    },
+                }
+            }
+        }
     }
 
     /// Attempts to get the node from the index position on the path.
@@ -1080,6 +1136,18 @@ impl<'a> HtmlQueryResult<'a> {
     }
 }
 
+#[cfg(test)]
+mod html_match_tests {
+    use super::*;
+
+    #[test]
+    fn parse_matches_basic_test() {
+        let doc =
+            HtmlDocument::from_str("<html><body><div>Hello <p class=bold>app</p></div>").unwrap();
+        let mut q = doc.query();
+    }
+}
+
 /// Iterator that walks along the path of the HtmlQueryResult from the bottom to
 /// the top.
 pub struct HtmlQueryResultIter<'a> {
@@ -1155,18 +1223,46 @@ impl<'a> HtmlQuery<'a> {
     }
 
     /// Find all elements with the tag provided in the Html structure.
-    pub fn find_with_tag(&self, tag: &str) -> &HtmlQuery {
-        todo!();
-        // if there are existing results -> search using the results as the top level.
-        //    loop through the results and call match();
-        // else
-        //     walk html tree calling match() on each node;
+    pub fn find_str(&mut self, selector: &str) -> Result<&HtmlQuery, ParseHtmlError> {
+        match CssSelector::from_str(selector) {
+            Err(e) => Err(e),
+            Ok(s) => Ok(self.find(&s)),
+        }
     }
 
     /// Search through either the root HTML nodes if there are no results stored,
     /// otherwise search through the current results.
-    pub fn find<T: TryInto<CssSelector>>(&self, selector: T) -> &HtmlQuery {
-        todo!();
+    pub fn find(&mut self, selector: &CssSelector) -> &HtmlQuery {
+        if self.results.len() == 0 {
+            self.find_from_root(selector);
+        } else {
+            self.find_from_results(selector);
+        }
+        self
+    }
+
+    fn find_from_root(&mut self, selector: &CssSelector) {
+        let mut res = HtmlQueryResult {
+            path: vec![(self.root, 0)],
+        };
+        // walk the tree and check for matches
+        loop {
+            if res.matches(selector) {
+                self.results.push(res.clone());
+            }
+            match res.walk_next() {
+                None => return,
+                Some(_) => (),
+            }
+        }
+    }
+
+    fn find_from_results(&mut self, selector: &CssSelector) {
+        let mut results = self.results;
+        self.results = vec![];
+        for res in results {
+            todo!();
+        }
     }
 }
 pub struct HtmlQueryResultMut<'a> {
