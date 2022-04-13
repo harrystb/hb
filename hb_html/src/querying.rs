@@ -1,8 +1,9 @@
 use crate::error::{HtmlMatchError, ParseHtmlError};
 use crate::objects::{
     CssAttributeCompareType, CssRefiner, CssRefinerNumberType, CssSelector, CssSelectorItem,
-    CssSelectorRelationship, HtmlDocument, HtmlNode,
+    CssSelectorRelationship, HtmlDocument, HtmlNode, HtmlTag,
 };
+use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
 
@@ -12,7 +13,7 @@ pub trait HtmlQueryable {
 
 /// An object which points to the a node in the HTML tree including the path to
 /// the node to allow looking at parent nodes.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct HtmlQueryResult<'a> {
     /// The path down the tree.
     /// The node is found by dereferencing the last element of the vector
@@ -22,7 +23,7 @@ pub struct HtmlQueryResult<'a> {
 impl<'a> HtmlQueryResult<'a> {
     /// Attempts to get the node pointed to by the path.
     /// Returns None if the path is empty.
-    pub fn get_node(&self) -> Option<&HtmlNode> {
+    pub fn get_node(&self) -> Option<&'a HtmlNode> {
         if self.path.len() == 0 {
             return None;
         }
@@ -72,12 +73,12 @@ impl<'a> HtmlQueryResult<'a> {
         self.path.push(end);
         Some(())
     }
-    pub fn move_to_first_child(&'a mut self) -> Option<()> {
+    pub fn move_to_first_child(&mut self) -> Option<()> {
         if self.path.len() == 0 {
             return None;
         }
         let (v, i) = self.path[self.path.len() - 1];
-        match v[i] {
+        match &v[i] {
             HtmlNode::Tag(t) => {
                 if t.contents.len() > 0 {
                     self.path.push((&t.contents, 0));
@@ -90,28 +91,27 @@ impl<'a> HtmlQueryResult<'a> {
         }
     }
 
-    pub fn walk_next(&'a mut self) -> Option<()> {
+    pub fn walk_next(&mut self) -> Option<()> {
         //attempt to move to first child
         match self.move_to_first_child() {
+            Some(a) => return Some(a),
+            None => (),
+        };
+        // next try go to next sibling
+        match self.move_to_next_sibling() {
             Some(a) => Some(a),
-            None => {
-                // next try go to next sibling
-                match self.move_to_next_sibling() {
-                    Some(a) => Some(a),
-                    None => loop {
-                        // now to go to parents next sibling, and keep going up until the end or a next sibling is found
-                        match self.move_to_parent() {
-                            None => {
-                                return None;
-                            }
-                            Some(_) => match self.move_to_next_sibling() {
-                                Some(a) => return Some(a),
-                                None => (),
-                            },
-                        }
+            None => loop {
+                // now to go to parents next sibling, and keep going up until the end or a next sibling is found
+                match self.move_to_parent() {
+                    None => {
+                        return None;
+                    }
+                    Some(_) => match self.move_to_next_sibling() {
+                        Some(a) => return Some(a),
+                        None => (),
                     },
                 }
-            }
+            },
         }
     }
 
@@ -1081,7 +1081,7 @@ impl<'a> HtmlQueryResult<'a> {
                             CssSelectorRelationship::Ancestor(selector_item) => {
                                 let mut ancestor = self.clone();
                                 let mut one_matches = false;
-                                while let Ok(_) = ancestor.move_to_parent() {
+                                while let Some(_) = ancestor.move_to_parent() {
                                     if ancestor.matches_item(&selector_item) {
                                         one_matches = true;
                                         break;
@@ -1095,7 +1095,7 @@ impl<'a> HtmlQueryResult<'a> {
                             CssSelectorRelationship::PreviousSibling(selector_item) => {
                                 let mut sibling = self.clone();
                                 let mut one_matches = false;
-                                while let Ok(_) = sibling.move_to_previous_sibling() {
+                                while let Some(_) = sibling.move_to_previous_sibling() {
                                     if sibling.matches_item(&selector_item) {
                                         one_matches = true;
                                         break;
@@ -1109,11 +1109,11 @@ impl<'a> HtmlQueryResult<'a> {
                             CssSelectorRelationship::PreviousSiblingOnce(selector_item) => {
                                 let mut sibling = self.clone();
                                 match sibling.move_to_previous_sibling() {
-                                    Err(_) => {
+                                    None => {
                                         rules_passed = false;
                                         break;
                                     }
-                                    Ok(_) => {
+                                    Some(_) => {
                                         if !sibling.matches_item(&selector_item) {
                                             rules_passed = false;
                                             break;
@@ -1142,9 +1142,49 @@ mod html_match_tests {
 
     #[test]
     fn parse_matches_basic_test() {
-        let doc =
-            HtmlDocument::from_str("<html><body><div>Hello <p class=bold>app</p></div>").unwrap();
+        let doc = HtmlDocument::from_str(
+            "<html><body><div>Hello <p class=bold>app</p></div></body></html>",
+        )
+        .unwrap();
         let mut q = doc.query();
+        q.find_str("div");
+        assert_eq!(
+            q.results
+                .iter()
+                .map(|x| x.get_node().unwrap())
+                .collect::<Vec<&HtmlNode>>(),
+            vec![&HtmlNode::Tag(HtmlTag {
+                tag: "div".to_owned(),
+                ids: [].to_vec(),
+                classes: [].to_vec(),
+                attributes: HashMap::new(),
+                contents: [
+                    HtmlNode::Text("Hello ".to_owned()),
+                    HtmlNode::Tag(HtmlTag {
+                        tag: "p".to_owned(),
+                        ids: [].to_vec(),
+                        classes: ["bold".to_owned()].to_vec(),
+                        attributes: HashMap::new(),
+                        contents: [HtmlNode::Text("app".to_owned())].to_vec()
+                    })
+                ]
+                .to_vec()
+            })]
+        );
+        q.find_str("p");
+        assert_eq!(
+            q.results
+                .iter()
+                .map(|x| x.get_node().unwrap())
+                .collect::<Vec<&HtmlNode>>(),
+            vec![&HtmlNode::Tag(HtmlTag {
+                tag: "p".to_owned(),
+                ids: [].to_vec(),
+                classes: ["bold".to_owned()].to_vec(),
+                attributes: HashMap::new(),
+                contents: [HtmlNode::Text("app".to_owned())].to_vec()
+            })]
+        );
     }
 }
 
@@ -1258,10 +1298,40 @@ impl<'a> HtmlQuery<'a> {
     }
 
     fn find_from_results(&mut self, selector: &CssSelector) {
-        let mut results = self.results;
+        let mut results = self.results.clone();
         self.results = vec![];
         for res in results {
-            todo!();
+            //result itself matches
+            if res.matches(selector) {
+                self.results.push(res.clone());
+            }
+            //check children of result only
+            match res.get_node() {
+                None => (),
+                Some(n) => match n {
+                    HtmlNode::Tag(t) => {
+                        if t.contents.len() > 0 {
+                            let mut new_res = HtmlQueryResult {
+                                path: vec![(&t.contents, 0)],
+                            };
+                            // walk the tree below the current result and check for matches
+                            loop {
+                                if new_res.matches(selector) {
+                                    //add the relative path to the path of the top level
+                                    let mut add_res = res.clone();
+                                    add_res.path.extend_from_slice(&new_res.path);
+                                    self.results.push(add_res);
+                                }
+                                match new_res.walk_next() {
+                                    None => return,
+                                    Some(_) => (),
+                                }
+                            }
+                        }
+                    }
+                    _ => (),
+                },
+            }
         }
     }
 }
