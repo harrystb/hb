@@ -1141,7 +1141,7 @@ mod html_match_tests {
     use super::*;
 
     #[test]
-    fn parse_matches_basic_test() {
+    fn html_matching_basic_test() {
         let doc = HtmlDocument::from_str(
             "<html><body><div>Hello <p class=bold>app</p></div></body></html>",
         )
@@ -1185,6 +1185,71 @@ mod html_match_tests {
                 contents: [HtmlNode::Text("app".to_owned())].to_vec()
             })]
         );
+    }
+
+    #[test]
+    fn html_matching_specific_tests() {
+        let doc = HtmlDocument::from_str(
+            r#"<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <title>A Sample HTML Document</title>
+        <meta name="description" content="A HTML document for testing purposes.">
+        <meta name="author" content="HB">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+    </head>
+    <body>
+        <h1 class=heading>Test HTML Document</h1>
+        <p>A HTML document for testing purposes.</p>
+        <div class="listbox shadow">List of dairy items:
+            <ul>
+                <li>Milk</li>
+                <li>Cheese</li>
+                <li>Yoghurt</li>
+                <li>Cream</li>
+            </ul>
+        </div>
+        <div class="tablebox shadow">Table of values:
+            <table>
+                <tr>
+                    <th>Company</th>
+                    <th>Contact</th>
+                    <th>Country</th>
+                </tr>
+                <tr id=first-data-row>
+                    <td>Alfreds Futterkiste</td>
+                    <td>Maria Anders</td>
+                    <td>Germany</td>
+                </tr>
+                <tr custom=red>
+                    <td>Centro comercial Moctezuma</td>
+                    <td>Francisco Chang</td>
+                    <td>Mexico</td>
+                </tr>
+            </table>
+        </div>
+        <div>Form stuffs
+            <form>
+              First name: <input type="text" value="Mickey"><br>
+              Last name: <input type="text" value="Mouse"><br>
+              Country: <input type="text" disabled="disabled" value="Disneyland">
+              <input type="radio" checked="checked" value="male" name="gender"> Male<br>
+              <input type="radio" value="female" name="gender"> Female<br>
+              <input type="checkbox" checked="checked" value="Bike"> I have a bike<br>
+              <input type="checkbox" value="Car"> I have a car 
+            </form>
+        </div>
+    </body>
+</html>"#,
+        );
+        let tests = vec![(,)];
+        for (test, res) in &tests {
+            assert_eq!(
+                test.parse::<Html>().unwrap().,
+                res
+            );
+        }
     }
 }
 
@@ -1260,6 +1325,11 @@ impl<'a> HtmlQuery<'a> {
             root: root,
             results: vec![],
         }
+    }
+
+    /// Clears ther results list
+    pub fn reset_result(&mut self) {
+        self.results.clear();
     }
 
     /// Find all elements with the tag provided in the Html structure.
