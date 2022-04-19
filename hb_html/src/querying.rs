@@ -1242,14 +1242,56 @@ mod html_match_tests {
         </div>
     </body>
 </html>"#,
+        )
+        .unwrap();
+        let dummy = HtmlNode::Comment(" ".to_owned());
+        //test the following match cases:
+        // - Tags
+        assert_eq!(
+            doc.find("p").nodes(),
+            vec![&HtmlNode::Tag(HtmlTag {
+                tag: "p".to_owned(),
+                ids: vec![],
+                classes: vec![],
+                attributes: HashMap::new(),
+                contents: vec![HtmlNode::Text(
+                    "A HTML document for testing purposes.".to_owned()
+                )]
+            })]
         );
-        let tests = vec![(,)];
-        for (test, res) in &tests {
-            assert_eq!(
-                test.parse::<Html>().unwrap().,
-                res
-            );
-        }
+        // - Class
+        assert_eq!(doc.find(".tablebox").nodes(), vec![&dummy]);
+        // - Id
+        assert_eq!(doc.find("#first-data-row").nodes(), vec![&dummy]);
+        // - Attributes:
+        //    - Present
+        //    - Equal
+        //    - BeginsWith
+        //    - EqualOrBeginsWith
+        //    - EndsWith
+        //    - Contains
+        //    - ContainsWord
+        // - Refiners:
+        //    - Checked
+        //    - Default
+        //    - Disabled
+        //    - Enabled
+        //    - Optional
+        //    - Required
+        //    - ReadOnly
+        //    - ReadWrite
+        //    - Empty
+        //    - FirstChild
+        //    - LastChild
+        //    - NthChild (exact/functional)
+        //    - NthLastChild (exact/functional)
+        //    - OnlyChild
+        //    - FirstOfType
+        //    - LastOfType
+        //    - NthOfType (exact/functional)
+        //    - OnlyOfType
+        //    - Not
+        //    - Root
     }
 }
 
@@ -1403,6 +1445,17 @@ impl<'a> HtmlQuery<'a> {
                 },
             }
         }
+    }
+
+    pub fn nodes(&'a self) -> Vec<&'a HtmlNode> {
+        let mut v = Vec::with_capacity(self.results.len());
+        for r in &self.results {
+            match r.get_node() {
+                Some(node) => v.push(node),
+                None => (),
+            }
+        }
+        v
     }
 }
 pub struct HtmlQueryResultMut<'a> {
