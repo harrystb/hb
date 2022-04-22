@@ -1009,8 +1009,10 @@ impl<'a> HtmlQueryResult<'a> {
                                 all_found = false;
                                 break;
                             }
+                            let mut alt_val = val.to_owned();
+                            alt_val.push('-');
                             if tag_node.attributes[a] != *val
-                                && !tag_node.attributes[a].starts_with(val)
+                                && !tag_node.attributes[a].starts_with(&alt_val)
                             {
                                 all_found = false;
                                 break;
@@ -1223,9 +1225,9 @@ mod html_match_tests {
                     <td>Germany</td>
                 </tr>
                 <tr custom=red>
-                    <td>Centro comercial Moctezuma</td>
-                    <td>Francisco Chang</td>
-                    <td>Mexico</td>
+                    <td custom=reds>Centro comercial Moctezuma</td>
+                    <td custom=re-ds>Francisco Chang</td>
+                    <td custom="something else">Mexico</td>
                 </tr>
             </table>
         </div>
@@ -1390,35 +1392,46 @@ mod html_match_tests {
                                                 HtmlNode::Tag(
                                                     HtmlTag::new("tr")
                                                         .attributes(vec![(
-                                                            "custom".to_owned(),
-                                                            "red".to_owned(),
+                                                            "custom",
+                                                            "red",
                                                         )])
                                                         .contents(vec![
                                                             HtmlNode::new_text(
                                                                 "\n                    ",
                                                             ),
                                                             HtmlNode::Tag(
-                                                                HtmlTag::new("td").contents(
-                                                                    vec![HtmlNode::new_text(
+                                                                HtmlTag::new("td")
+                                                                    .attributes(vec![(
+                                                                        "custom", "reds",
+                                                                    )])
+                                                                    .contents(
+                                                                        vec![HtmlNode::new_text(
                                                                 "Centro comercial Moctezuma",
                                                             )],
-                                                                ),
-                                                            ),
-                                                            HtmlNode::new_text(
-                                                                "\n                    ",
-                                                            ),
-                                                            HtmlNode::Tag(
-                                                                HtmlTag::new("td").contents(vec![
-                                                                    HtmlNode::new_text(
-                                                                        "Francisco Chang",
                                                                     ),
-                                                                ]),
                                                             ),
                                                             HtmlNode::new_text(
                                                                 "\n                    ",
                                                             ),
                                                             HtmlNode::Tag(
-                                                                HtmlTag::new("td").contents(vec![
+                                                                HtmlTag::new("td")
+                                                                    .attributes(vec![(
+                                                                        "custom", "re-ds",
+                                                                    )])
+                                                                    .contents(vec![
+                                                                        HtmlNode::new_text(
+                                                                            "Francisco Chang",
+                                                                        ),
+                                                                    ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").attributes(vec![(
+                                                            "custom",
+                                                            "something else",
+                                                        )]).contents(vec![
                                                                     HtmlNode::new_text("Mexico"),
                                                                 ]),
                                                             ),
@@ -1579,21 +1592,29 @@ mod html_match_tests {
                                                                 "\n                    ",
                                                             ),
                                                             HtmlNode::Tag(
-                                                                HtmlTag::new("td").contents(
-                                                                    vec![HtmlNode::new_text(
+                                                                HtmlTag::new("td")
+                                                                    .attributes(vec![(
+                                                                        "custom", "reds",
+                                                                    )])
+                                                                    .contents(
+                                                                        vec![HtmlNode::new_text(
                                                                 "Centro comercial Moctezuma",
                                                             )],
-                                                                ),
+                                                                    ),
                                                             ),
                                                             HtmlNode::new_text(
                                                                 "\n                    ",
                                                             ),
                                                             HtmlNode::Tag(
-                                                                HtmlTag::new("td").contents(vec![
-                                                                    HtmlNode::new_text(
-                                                                        "Francisco Chang",
-                                                                    ),
-                                                                ]),
+                                                                HtmlTag::new("td")
+                                                                    .attributes(vec![(
+                                                                        "custom", "re-ds",
+                                                                    )])
+                                                                    .contents(vec![
+                                                                        HtmlNode::new_text(
+                                                                            "Francisco Chang",
+                                                                        ),
+                                                                    ]),
                                                             ),
                                                             HtmlNode::new_text(
                                                                 "\n                    ",
@@ -1640,12 +1661,262 @@ mod html_match_tests {
         );
         // - Attributes:
         //    - Present
+        assert_eq!(
+            doc.find("[custom]").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("tr")
+                        .attributes(vec![("custom", "red",)])
+                        .contents(vec![
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "reds",)])
+                                    .contents(vec![HtmlNode::new_text(
+                                        "Centro comercial Moctezuma",
+                                    )],),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "re-ds",)])
+                                    .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "something else",)])
+                                    .contents(vec![HtmlNode::new_text("Mexico"),]),
+                            ),
+                            HtmlNode::new_text("\n                ",),
+                        ]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "reds",)])
+                        .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "re-ds",)])
+                        .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "something else",)])
+                        .contents(vec![HtmlNode::new_text("Mexico"),]),
+                ),
+            ]
+        );
         //    - Equal
+        assert_eq!(
+            doc.find("[custom=red]").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("tr")
+                    .attributes(vec![("custom", "red",)])
+                    .contents(vec![
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td")
+                                .attributes(vec![("custom", "reds",)])
+                                .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                        ),
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td")
+                                .attributes(vec![("custom", "re-ds",)])
+                                .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                        ),
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td")
+                                .attributes(vec![("custom", "something else",)])
+                                .contents(vec![HtmlNode::new_text("Mexico"),]),
+                        ),
+                        HtmlNode::new_text("\n                ",),
+                    ]),
+            ),]
+        );
         //    - BeginsWith
+        assert_eq!(
+            doc.find("[custom^=red]").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("tr")
+                        .attributes(vec![("custom", "red",)])
+                        .contents(vec![
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "reds",)])
+                                    .contents(vec![HtmlNode::new_text(
+                                        "Centro comercial Moctezuma",
+                                    )],),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "re-ds",)])
+                                    .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "something else",)])
+                                    .contents(vec![HtmlNode::new_text("Mexico"),]),
+                            ),
+                            HtmlNode::new_text("\n                ",),
+                        ]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "reds",)])
+                        .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("[custom^=re]").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("tr")
+                        .attributes(vec![("custom", "red",)])
+                        .contents(vec![
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "reds",)])
+                                    .contents(vec![HtmlNode::new_text(
+                                        "Centro comercial Moctezuma",
+                                    )],),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "re-ds",)])
+                                    .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "something else",)])
+                                    .contents(vec![HtmlNode::new_text("Mexico"),]),
+                            ),
+                            HtmlNode::new_text("\n                ",),
+                        ]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "reds",)])
+                        .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "re-ds",)])
+                        .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                ),
+            ]
+        );
         //    - EqualOrBeginsWith
+        assert_eq!(
+            doc.find("[custom|=red]").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("tr")
+                    .attributes(vec![("custom", "red",)])
+                    .contents(vec![
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td")
+                                .attributes(vec![("custom", "reds",)])
+                                .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                        ),
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td")
+                                .attributes(vec![("custom", "re-ds",)])
+                                .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                        ),
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td")
+                                .attributes(vec![("custom", "something else",)])
+                                .contents(vec![HtmlNode::new_text("Mexico"),]),
+                        ),
+                        HtmlNode::new_text("\n                ",),
+                    ]),
+            ),]
+        );
+        assert_eq!(
+            doc.find("[custom|=re]").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("td")
+                    .attributes(vec![("custom", "re-ds",)])
+                    .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+            ),]
+        );
         //    - EndsWith
+        assert_eq!(
+            doc.find("[custom$=ds]").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "reds",)])
+                        .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "re-ds",)])
+                        .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                ),
+            ]
+        );
         //    - Contains
+        assert_eq!(
+            doc.find("[custom*=ed]").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("tr")
+                        .attributes(vec![("custom", "red",)])
+                        .contents(vec![
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "reds",)])
+                                    .contents(vec![HtmlNode::new_text(
+                                        "Centro comercial Moctezuma",
+                                    )],),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "re-ds",)])
+                                    .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "something else",)])
+                                    .contents(vec![HtmlNode::new_text("Mexico"),]),
+                            ),
+                            HtmlNode::new_text("\n                ",),
+                        ]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "reds",)])
+                        .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                ),
+            ]
+        );
         //    - ContainsWord
+        assert_eq!(
+            doc.find("[custom~=something]").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("td")
+                    .attributes(vec![("custom", "something else",)])
+                    .contents(vec![HtmlNode::new_text("Mexico"),]),
+            ),]
+        );
         // - Refiners:
         //    - Checked
         //    - Default

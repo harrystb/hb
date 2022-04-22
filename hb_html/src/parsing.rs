@@ -895,6 +895,13 @@ pub fn parse_css_selector_item(
     // read until one of " " + > ~
     let mut item_str = String::new();
     let mut level = 0; //for handling ( and )
+    #[derive(PartialEq)]
+    enum LastLevel {
+        Round,
+        Square,
+        None,
+    }
+    let mut last_level = LastLevel::None;
     loop {
         match chs.peek() {
             None => {
@@ -903,7 +910,19 @@ pub fn parse_css_selector_item(
             Some(ch) => {
                 if *ch == '(' {
                     level = level + 1;
-                } else if *ch == '(' {
+                    last_level = LastLevel::Round;
+                } else if *ch == ')' {
+                    if last_level != LastLevel::Round {
+                        return Err(ParseHtmlError::with_msg("Found ')' without a opening '('"));
+                    }
+                    level = level - 1;
+                } else if *ch == '[' {
+                    level = level + 1;
+                    last_level = LastLevel::Square;
+                } else if *ch == ']' {
+                    if last_level != LastLevel::Square {
+                        return Err(ParseHtmlError::with_msg("Found ']' without a opening '['"));
+                    }
                     level = level - 1;
                 } else if (*ch == ' ' || *ch == '+' || *ch == '>' || *ch == '~') && (level == 0) {
                     break;
@@ -960,7 +979,7 @@ pub fn parse_css_selector_item(
                     }
                 }
                 '[' => {
-                    item_chars.next(); //consume the .
+                    item_chars.next(); //consume the [
                     match &mut item.attributes {
                         None => {
                             let mut attributes = vec![];
@@ -1002,7 +1021,8 @@ pub fn parse_css_selector_item(
 fn parse_css_attribute_rule(
     chs: &mut std::iter::Peekable<std::str::Chars>,
 ) -> Result<CssAttributeCompareType, ParseHtmlError> {
-    let attr = parse_until_one_of_peekable(chs, vec![']', '=', '|', '^', '$', '*', '~'])?;
+    let attr = parse_until_one_of_peekable(chs, vec![']', '=', '|', '^', '$', '*', '~'])
+        .map_err(|e| e.add_context("could not parse css selector attribute rule"))?;
     let mut sep = String::new();
     match chs.peek() {
         None => {
