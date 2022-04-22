@@ -103,6 +103,39 @@ impl HtmlTag {
             attributes: HashMap::new(),
         }
     }
+
+    pub fn tag<T: Into<String>>(mut self, tag: T) -> HtmlTag {
+        self.tag = tag.into();
+        self
+    }
+    pub fn ids<T: Into<String>>(mut self, ids: Vec<T>) -> HtmlTag {
+        self.ids = Vec::with_capacity(ids.len());
+        for i in ids {
+            self.ids.push(i.into());
+        }
+        self
+    }
+    pub fn classes<T: Into<String>>(mut self, classes: Vec<T>) -> HtmlTag {
+        self.classes = Vec::with_capacity(classes.len());
+        for c in classes {
+            self.classes.push(c.into());
+        }
+        self
+    }
+    pub fn contents(mut self, contents: Vec<HtmlNode>) -> HtmlTag {
+        self.contents = Vec::with_capacity(contents.len());
+        for n in contents {
+            self.contents.push(n);
+        }
+        self
+    }
+    pub fn attributes<T: Into<String>>(mut self, attributes: Vec<(T, T)>) -> HtmlTag {
+        self.attributes = HashMap::with_capacity(attributes.len());
+        for (a, v) in attributes {
+            self.attributes.insert(a.into(), v.into());
+        }
+        self
+    }
 }
 
 impl FromStr for HtmlTag {
@@ -219,12 +252,22 @@ impl HtmlQueryable for Vec<HtmlNode> {
 
 impl HtmlNode {
     /// Converts the HtmlNode into a string formatted as HTML.
-    fn to_html_string(&self) -> String {
+    pub fn to_html_string(&self) -> String {
         match &self {
             HtmlNode::Comment(c) => format!("<!-- {} --!>", c),
             HtmlNode::Tag(t) => t.to_html_string(),
             HtmlNode::Text(t) => t.to_string(),
         }
+    }
+
+    pub fn new_text<T: Into<String>>(text: T) -> HtmlNode {
+        HtmlNode::Text(text.into())
+    }
+    pub fn new_comment<T: Into<String>>(text: T) -> HtmlNode {
+        HtmlNode::Text(text.into())
+    }
+    pub fn new_tag<T: Into<String>>(tag: T) -> HtmlNode {
+        HtmlNode::Tag(HtmlTag::new(tag.into()))
     }
 }
 
@@ -253,7 +296,7 @@ mod html_tag_tests {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 /// Represents a whole HTML document.
 ///
 /// # Example

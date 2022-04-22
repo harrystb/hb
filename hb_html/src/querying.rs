@@ -1244,25 +1244,400 @@ mod html_match_tests {
 </html>"#,
         )
         .unwrap();
+        let doc_manual = HtmlDocument {
+            doctype: "html".to_owned(),
+            nodes: vec![HtmlNode::Tag(HtmlTag::new("html").contents(vec![
+                HtmlNode::new_text("\n    "),
+                HtmlNode::Tag(HtmlTag::new("head").contents(vec![
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(HtmlTag::new("meta").attributes(vec![
+                            ("content", "text/html; charset=UTF-8"),
+                            ("http-equiv", "Content-Type"),
+                        ])),
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(
+                            HtmlTag::new("title").contents(vec![HtmlNode::Text(
+                                "A Sample HTML Document".to_owned(),
+                            )]),
+                        ),
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(HtmlTag::new("meta").attributes(vec![
+                            ("name", "description"),
+                            ("content", "A HTML document for testing purposes."),
+                        ])),
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(HtmlTag::new("meta").attributes(vec![
+                            ("name".to_owned(), "author".to_owned()),
+                            ("content".to_owned(), "HB".to_owned()),
+                        ])),
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(HtmlTag::new("meta").attributes(vec![
+                            ("name", "viewport"),
+                            ("content", "width=device-width, initial-scale=1"),
+                        ])),
+                        HtmlNode::new_text("\n    "),
+                    ])),
+                HtmlNode::new_text("\n    "),
+                HtmlNode::Tag(HtmlTag::new("body").contents(vec![
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("h1")
+                                    .classes(vec!["heading"])
+                                    .contents(vec![HtmlNode::new_text("Test HTML Document")]),
+                            ),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(HtmlTag::new("p").contents(vec![HtmlNode::new_text(
+                                "A HTML document for testing purposes.",
+                            )])),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("div")
+                                    .classes(vec!["listbox", "shadow"])
+                                    .contents(vec![
+                                        HtmlNode::new_text("List of dairy items:\n            "),
+                                        HtmlNode::Tag(HtmlTag::new("ul").contents(vec![
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("li")
+                                                        .contents(vec![HtmlNode::new_text("Milk")]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("li").contents(vec![
+                                                        HtmlNode::new_text("Cheese"),
+                                                    ]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("li").contents(vec![
+                                                        HtmlNode::new_text("Yoghurt"),
+                                                    ]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("li").contents(vec![
+                                                        HtmlNode::new_text("Cream"),
+                                                    ]),
+                                                ),
+                                                HtmlNode::new_text("\n            "),
+                                            ])),
+                                        HtmlNode::new_text("\n        "),
+                                    ]),
+                            ),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("div")
+                                    .classes(vec!["tablebox", "shadow"])
+                                    .contents(vec![
+                                        HtmlNode::new_text("Table of values:\n            "),
+                                        HtmlNode::Tag(
+                                            HtmlTag::new("table").contents(vec![
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(HtmlTag::new("tr").contents(vec![
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Company")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Contact")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Country")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                "),
+                                                ])),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("tr")
+                                                        .ids(vec!["first-data-row"])
+                                                        .contents(vec![
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text(
+                                                                        "Alfreds Futterkiste",
+                                                                    ),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text(
+                                                                        "Maria Anders",
+                                                                    ),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text("Germany"),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                ",
+                                                            ),
+                                                        ]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("tr")
+                                                        .attributes(vec![(
+                                                            "custom".to_owned(),
+                                                            "red".to_owned(),
+                                                        )])
+                                                        .contents(vec![
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(
+                                                                    vec![HtmlNode::new_text(
+                                                                "Centro comercial Moctezuma",
+                                                            )],
+                                                                ),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text(
+                                                                        "Francisco Chang",
+                                                                    ),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text("Mexico"),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                ",
+                                                            ),
+                                                        ]),
+                                                ),
+                                                HtmlNode::new_text("\n            "),
+                                            ]),
+                                        ),
+                                        HtmlNode::new_text("\n        "),
+                                    ]),
+                            ),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(HtmlTag::new("div").contents(vec![
+                                HtmlNode::new_text("Form stuffs\n            "),
+                                HtmlNode::Tag(HtmlTag::new("form").contents(vec![
+                                        HtmlNode::new_text("\n              First name: "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("type", "text"),
+                                            ("value", "Mickey"),
+                                        ])),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              Last name: "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("type", "text"),
+                                            ("value", "Mouse"),
+                                        ])),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              Country: "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("value", "Disneyland"),
+                                            ("disabled", "disabled"),
+                                            ("type", "text"),
+                                        ])),
+                                        HtmlNode::new_text("\n              "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("checked", "checked"),
+                                            ("type", "radio"),
+                                            ("value", "male"),
+                                            ("name", "gender"),
+                                        ])),
+                                        HtmlNode::new_text(" Male"),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("type", "radio"),
+                                            ("name", "gender"),
+                                            ("value", "female"),
+                                        ])),
+                                        HtmlNode::new_text(" Female"),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("value", "Bike"),
+                                            ("checked", "checked"),
+                                            ("type", "checkbox"),
+                                        ])),
+                                        HtmlNode::new_text(" I have a bike"),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("type", "checkbox"),
+                                            ("value", "Car"),
+                                        ])),
+                                        HtmlNode::new_text(" I have a car \n            "),
+                                    ])),
+                                HtmlNode::new_text("\n        "),
+                            ])),
+                            HtmlNode::new_text("\n    "),
+                        ])),
+                HtmlNode::new_text("\n"),
+            ]))],
+        };
+        assert_eq!(doc, doc_manual);
         let dummy = HtmlNode::Comment(" ".to_owned());
         //test the following match cases:
         // - Tags
         assert_eq!(
             doc.find("p").nodes(),
-            vec![&HtmlNode::Tag(HtmlTag {
-                tag: "p".to_owned(),
-                ids: vec![],
-                classes: vec![],
-                attributes: HashMap::new(),
-                contents: vec![HtmlNode::Text(
-                    "A HTML document for testing purposes.".to_owned()
-                )]
-            })]
+            vec![&HtmlNode::Tag(HtmlTag::new("p").contents(vec![
+                HtmlNode::new_text("A HTML document for testing purposes.",)
+            ])),]
         );
         // - Class
-        assert_eq!(doc.find(".tablebox").nodes(), vec![&dummy]);
+        assert_eq!(
+            doc.find(".tablebox").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("div")
+                    .classes(vec!["tablebox", "shadow"])
+                    .contents(vec![
+                        HtmlNode::new_text("Table of values:\n            "),
+                        HtmlNode::Tag(HtmlTag::new("table").contents(vec![
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(HtmlTag::new("tr").contents(vec![
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Company")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Contact")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Country")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                "),
+                                                ])),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("tr")
+                                                        .ids(vec!["first-data-row"])
+                                                        .contents(vec![
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text(
+                                                                        "Alfreds Futterkiste",
+                                                                    ),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text(
+                                                                        "Maria Anders",
+                                                                    ),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text("Germany"),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                ",
+                                                            ),
+                                                        ]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("tr")
+                                                        .attributes(vec![(
+                                                            "custom".to_owned(),
+                                                            "red".to_owned(),
+                                                        )])
+                                                        .contents(vec![
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(
+                                                                    vec![HtmlNode::new_text(
+                                                                "Centro comercial Moctezuma",
+                                                            )],
+                                                                ),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text(
+                                                                        "Francisco Chang",
+                                                                    ),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text("Mexico"),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                ",
+                                                            ),
+                                                        ]),
+                                                ),
+                                                HtmlNode::new_text("\n            "),
+                                            ]),),
+                        HtmlNode::new_text("\n        "),
+                    ]),
+            ),]
+        );
         // - Id
-        assert_eq!(doc.find("#first-data-row").nodes(), vec![&dummy]);
+        assert_eq!(
+            doc.find("#first-data-row").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("tr")
+                    .ids(vec!["first-data-row"])
+                    .contents(vec![
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td")
+                                .contents(vec![HtmlNode::new_text("Alfreds Futterkiste",),]),
+                        ),
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td").contents(vec![HtmlNode::new_text("Maria Anders",),]),
+                        ),
+                        HtmlNode::new_text("\n                    ",),
+                        HtmlNode::Tag(
+                            HtmlTag::new("td").contents(vec![HtmlNode::new_text("Germany"),]),
+                        ),
+                        HtmlNode::new_text("\n                ",),
+                    ]),
+            ),]
+        );
         // - Attributes:
         //    - Present
         //    - Equal
