@@ -426,10 +426,19 @@ pub fn parse_html_tag(chs: &mut std::str::Chars) -> Result<ParsedTagType, ParseH
             let (attr_str, attr_ending) = buffer.split_at(buffer.len() - 1);
             if attr_ending == ">" {
                 if attr_str.len() > 0 {
-                    return Err(ParseHtmlError::new(format!(
-                        "Expected value for attribute '{}', got '{}' instead of '='.",
-                        attr_str, attr_ending
-                    )));
+                    if attr_str == "class" {
+                        return Err(ParseHtmlError::new(format!(
+                            "Expected value for the class attribute attribute '{}', got '{}' instead of '='.",
+                            attr_str, attr_ending
+                        )));
+                    } else if attr_str == "id" {
+                        return Err(ParseHtmlError::new(format!(
+                            "Expected value for the id attribute attribute '{}', got '{}' instead of '='.",
+                            attr_str, attr_ending
+                        )));
+                    } else {
+                        node.attributes.insert(attr_str.to_string(), String::new());
+                    }
                 }
                 //didn't get an attribute - just got the end of tag symbol
                 break;
