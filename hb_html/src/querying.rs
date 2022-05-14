@@ -270,7 +270,7 @@ impl<'a> HtmlQueryResult<'a> {
                                     break;
                                 }
                                 if tag_node.attributes[&type_str] != "checkbox".to_owned()
-                                    || tag_node.attributes[&type_str] != "radio".to_owned()
+                                    && tag_node.attributes[&type_str] != "radio".to_owned()
                                 {
                                     all_found = false;
                                     break;
@@ -1528,7 +1528,6 @@ mod html_match_tests {
                                                 HtmlTag::new("option")
                                                     .attributes(vec![
                                                         ("value", "red"),
-                                                        ("selected", ""),
                                                     ])
                                                     .contents(vec![HtmlNode::new_text("Red")]),
                                             ),
@@ -1537,7 +1536,6 @@ mod html_match_tests {
                                                 HtmlTag::new("option")
                                                     .attributes(vec![
                                                         ("value", "green"),
-                                                        ("selected", ""),
                                                     ])
                                                     .contents(vec![HtmlNode::new_text("Green")]),
                                             ),
@@ -1546,7 +1544,6 @@ mod html_match_tests {
                                                 HtmlTag::new("option")
                                                     .attributes(vec![
                                                         ("value", "yellow"),
-                                                        ("selected", ""),
                                                     ])
                                                     .contents(vec![HtmlNode::new_text("Yellow")]),
                                             ),
@@ -1994,8 +1991,114 @@ mod html_match_tests {
             ]
         );
         //    - Default
+        assert_eq!(
+            doc.find(":default").nodes(),
+            vec![
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("checked", "checked"),
+                    ("type", "radio"),
+                    ("value", "male"),
+                    ("name", "gender"),
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("value", "Bike"),
+                    ("checked", "checked"),
+                    ("type", "checkbox"),
+                ])),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+            ]
+        );
         //    - Disabled
+        assert_eq!(
+            doc.find(":disabled").nodes(),
+            vec![&HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                ("value", "Disneyland"),
+                ("type", "text"),
+                ("disabled", "disabled")
+            ])),]
+        );
         //    - Enabled
+        assert_eq!(
+            doc.find(":enabled").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("input").attributes(vec![("type", "text"), ("value", "Mickey"),])
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("input").attributes(vec![("type", "text"), ("value", "Mouse"),])
+                ),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("checked", "checked"),
+                    ("type", "radio"),
+                    ("value", "male"),
+                    ("name", "gender"),
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("type", "radio"),
+                    ("name", "gender"),
+                    ("value", "female"),
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("value", "Bike"),
+                    ("checked", "checked"),
+                    ("type", "checkbox"),
+                ])),
+                &HtmlNode::Tag(
+                    HtmlTag::new("input").attributes(vec![("type", "checkbox"), ("value", "Car"),])
+                ),
+                &HtmlNode::Tag(HtmlTag::new("select").contents(vec![
+                    HtmlNode::new_text("\n          "),
+                    HtmlNode::Tag(
+                        HtmlTag::new("option")
+                            .attributes(vec![("value", "blue"), ("selected", ""),])
+                            .contents(vec![HtmlNode::new_text("Blue")]),
+                    ),
+                    HtmlNode::new_text("\n          "),
+                    HtmlNode::Tag(
+                        HtmlTag::new("option")
+                            .attributes(vec![("value", "red")])
+                            .contents(vec![HtmlNode::new_text("Red")]),
+                    ),
+                    HtmlNode::new_text("\n          "),
+                    HtmlNode::Tag(
+                        HtmlTag::new("option")
+                            .attributes(vec![("value", "green"),])
+                            .contents(vec![HtmlNode::new_text("Green")]),
+                    ),
+                    HtmlNode::new_text("\n          "),
+                    HtmlNode::Tag(
+                        HtmlTag::new("option")
+                            .attributes(vec![("value", "yellow"),])
+                            .contents(vec![HtmlNode::new_text("Yellow")]),
+                    ),
+                    HtmlNode::new_text("\n          "),
+                ])),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
         //    - Optional
         //    - Required
         //    - ReadOnly
