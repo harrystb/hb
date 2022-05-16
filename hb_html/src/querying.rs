@@ -558,7 +558,7 @@ impl<'a> HtmlQueryResult<'a> {
                                             all_found = false;
                                             break;
                                         }
-                                        if (number_from_start_i32 - offset) % step == 0 {
+                                        if (number_from_start_i32 - offset) % step != 0 {
                                             // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
                                             all_found = false;
                                             break;
@@ -573,7 +573,7 @@ impl<'a> HtmlQueryResult<'a> {
                                             all_found = false;
                                             break;
                                         }
-                                        if (number_from_start_i32 - offset) % step == 0 {
+                                        if (number_from_start_i32 - offset) % step != 0 {
                                             // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
                                             all_found = false;
                                             break;
@@ -640,7 +640,7 @@ impl<'a> HtmlQueryResult<'a> {
                                             all_found = false;
                                             break;
                                         }
-                                        if (number_from_end_i32 - offset) % step == 0 {
+                                        if (number_from_end_i32 - offset) % step != 0 {
                                             // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
                                             all_found = false;
                                             break;
@@ -655,7 +655,7 @@ impl<'a> HtmlQueryResult<'a> {
                                             all_found = false;
                                             break;
                                         }
-                                        if (number_from_end_i32 - offset) % step == 0 {
+                                        if (number_from_end_i32 - offset) % step != 0 {
                                             // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
                                             all_found = false;
                                             break;
@@ -808,7 +808,7 @@ impl<'a> HtmlQueryResult<'a> {
                                             all_found = false;
                                             break;
                                         }
-                                        if (number_from_end_i32 - offset) % step == 0 {
+                                        if (number_from_end_i32 - offset) % step != 0 {
                                             // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
                                             all_found = false;
                                             break;
@@ -823,7 +823,7 @@ impl<'a> HtmlQueryResult<'a> {
                                             all_found = false;
                                             break;
                                         }
-                                        if (number_from_end_i32 - offset) % step == 0 {
+                                        if (number_from_end_i32 - offset) % step != 0 {
                                             // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
                                             all_found = false;
                                             break;
@@ -892,7 +892,7 @@ impl<'a> HtmlQueryResult<'a> {
                                             all_found = false;
                                             break;
                                         }
-                                        if (number_from_end_i32 - offset) % step == 0 {
+                                        if (number_from_end_i32 - offset) % step != 0 {
                                             // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
                                             all_found = false;
                                             break;
@@ -907,7 +907,7 @@ impl<'a> HtmlQueryResult<'a> {
                                             all_found = false;
                                             break;
                                         }
-                                        if (number_from_end_i32 - offset) % step == 0 {
+                                        if (number_from_end_i32 - offset) % step != 0 {
                                             // An+B = x -> (x-B) = An for any n -> (x-B) % A == 0
                                             all_found = false;
                                             break;
@@ -1212,6 +1212,7 @@ mod html_match_tests {
                 <li>Cream</li>
             </ul>
         </div>
+        <div class=top><div class=alone></div>That div is empty...</div>
         <div class="tablebox shadow">Table of values:
             <table>
                 <tr>
@@ -1236,10 +1237,10 @@ mod html_match_tests {
               First name: <input type="text" value="Mickey"><br>
               Last name: <input type="text" value="Mouse"><br>
               Country: <input type="text" disabled="disabled" value="Disneyland">
-              <input type="radio" checked="checked" value="male" name="gender"> Male<br>
-              <input type="radio" value="female" name="gender"> Female<br>
-              <input type="checkbox" checked="checked" value="Bike"> I have a bike<br>
-              <input type="checkbox" value="Car"> I have a car 
+              <input type="radio" checked="checked" value="male" name="gender" read-only=read-only> Male<br>
+              <input type="radio" value="female" name="gender" required=required read-only=false> Female<br>
+              <input type="checkbox" checked="checked" value="Bike" required> I have a bike<br>
+              <input type="checkbox" value="Car" read-only> I have a car 
             </form>
         </div>
         <div> Options
@@ -1334,6 +1335,11 @@ mod html_match_tests {
                                         HtmlNode::new_text("\n        "),
                                     ]),
                             ),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(HtmlTag::new("div").classes(vec!["top"]).contents(vec![
+                                HtmlNode::Tag(HtmlTag::new("div").classes(vec!["alone"])),
+                                HtmlNode::new_text("That div is empty..."),
+                            ])),
                             HtmlNode::new_text("\n        "),
                             HtmlNode::Tag(
                                 HtmlTag::new("div")
@@ -1480,6 +1486,7 @@ mod html_match_tests {
                                             ("type", "radio"),
                                             ("value", "male"),
                                             ("name", "gender"),
+                                            ("read-only","read-only")
                                         ])),
                                         HtmlNode::new_text(" Male"),
                                         HtmlNode::Tag(HtmlTag::new("br")),
@@ -1488,6 +1495,8 @@ mod html_match_tests {
                                             ("type", "radio"),
                                             ("name", "gender"),
                                             ("value", "female"),
+                                            ("required", "required"),
+                                            ("read-only","false")
                                         ])),
                                         HtmlNode::new_text(" Female"),
                                         HtmlNode::Tag(HtmlTag::new("br")),
@@ -1496,6 +1505,7 @@ mod html_match_tests {
                                             ("value", "Bike"),
                                             ("checked", "checked"),
                                             ("type", "checkbox"),
+                                            ("required","")
                                         ])),
                                         HtmlNode::new_text(" I have a bike"),
                                         HtmlNode::Tag(HtmlTag::new("br")),
@@ -1503,17 +1513,16 @@ mod html_match_tests {
                                         HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
                                             ("type", "checkbox"),
                                             ("value", "Car"),
+                                            ("read-only","")
                                         ])),
                                         HtmlNode::new_text(" I have a car \n            "),
                                     ])),
                                 HtmlNode::new_text("\n        "),
                             ])),
                             HtmlNode::new_text("\n    "),
-                            HtmlNode::Tag(
-                                HtmlTag::new("div").contents(vec![
-                                    HtmlNode::new_text(" Options\n        "),
-                                    HtmlNode::Tag(
-                                        HtmlTag::new("select").contents(vec![
+                            HtmlNode::Tag(HtmlTag::new("div").contents(vec![
+                                HtmlNode::new_text(" Options\n        "),
+                                HtmlNode::Tag(HtmlTag::new("select").contents(vec![
                                             HtmlNode::new_text("\n          "),
                                             HtmlNode::Tag(
                                                 HtmlTag::new("option")
@@ -1548,11 +1557,9 @@ mod html_match_tests {
                                                     .contents(vec![HtmlNode::new_text("Yellow")]),
                                             ),
                                             HtmlNode::new_text("\n          "),
-                                        ]),
-                                    ),
-                                    HtmlNode::new_text("\n        "),
-                                ]),
-                            ),
+                                        ])),
+                                HtmlNode::new_text("\n        "),
+                            ])),
                         ])),
                 HtmlNode::new_text("\n"),
             ]))],
@@ -1977,11 +1984,13 @@ mod html_match_tests {
                     ("type", "radio"),
                     ("value", "male"),
                     ("name", "gender"),
+                    ("read-only", "read-only")
                 ])),
                 &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
                     ("value", "Bike"),
                     ("checked", "checked"),
                     ("type", "checkbox"),
+                    ("required", "")
                 ])),
                 &HtmlNode::Tag(
                     HtmlTag::new("option")
@@ -1999,11 +2008,13 @@ mod html_match_tests {
                     ("type", "radio"),
                     ("value", "male"),
                     ("name", "gender"),
+                    ("read-only", "read-only")
                 ])),
                 &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
                     ("value", "Bike"),
                     ("checked", "checked"),
                     ("type", "checkbox"),
+                    ("required", "")
                 ])),
                 &HtmlNode::Tag(
                     HtmlTag::new("option")
@@ -2036,20 +2047,26 @@ mod html_match_tests {
                     ("type", "radio"),
                     ("value", "male"),
                     ("name", "gender"),
+                    ("read-only", "read-only")
                 ])),
                 &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
                     ("type", "radio"),
                     ("name", "gender"),
                     ("value", "female"),
+                    ("required", "required"),
+                    ("read-only", "false")
                 ])),
                 &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
                     ("value", "Bike"),
                     ("checked", "checked"),
                     ("type", "checkbox"),
+                    ("required", "")
                 ])),
-                &HtmlNode::Tag(
-                    HtmlTag::new("input").attributes(vec![("type", "checkbox"), ("value", "Car"),])
-                ),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("type", "checkbox"),
+                    ("value", "Car"),
+                    ("read-only", "")
+                ])),
                 &HtmlNode::Tag(HtmlTag::new("select").contents(vec![
                     HtmlNode::new_text("\n          "),
                     HtmlNode::Tag(
@@ -2100,21 +2117,815 @@ mod html_match_tests {
             ]
         );
         //    - Optional
+        assert_eq!(
+            doc.find(":optional").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("input").attributes(vec![("type", "text"), ("value", "Mickey"),])
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("input").attributes(vec![("type", "text"), ("value", "Mouse"),])
+                ),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("value", "Disneyland"),
+                    ("disabled", "disabled"),
+                    ("type", "text"),
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("checked", "checked"),
+                    ("type", "radio"),
+                    ("value", "male"),
+                    ("name", "gender"),
+                    ("read-only", "read-only")
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("type", "checkbox"),
+                    ("value", "Car"),
+                    ("read-only", "")
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("select").contents(vec![
+                            HtmlNode::new_text("\n          "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("option")
+                                    .attributes(vec![("value", "blue"), ("selected", ""),])
+                                    .contents(vec![HtmlNode::new_text("Blue")]),
+                            ),
+                            HtmlNode::new_text("\n          "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("option")
+                                    .attributes(vec![("value", "red"),])
+                                    .contents(vec![HtmlNode::new_text("Red")]),
+                            ),
+                            HtmlNode::new_text("\n          "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("option")
+                                    .attributes(vec![("value", "green"),])
+                                    .contents(vec![HtmlNode::new_text("Green")]),
+                            ),
+                            HtmlNode::new_text("\n          "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("option")
+                                    .attributes(vec![("value", "yellow"),])
+                                    .contents(vec![HtmlNode::new_text("Yellow")]),
+                            ),
+                            HtmlNode::new_text("\n          "),
+                        ])),
+            ]
+        );
         //    - Required
+        assert_eq!(
+            doc.find(":required").nodes(),
+            vec![
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("type", "radio"),
+                    ("name", "gender"),
+                    ("value", "female"),
+                    ("required", "required"),
+                    ("read-only", "false")
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("value", "Bike"),
+                    ("checked", "checked"),
+                    ("type", "checkbox"),
+                    ("required", "")
+                ])),
+            ]
+        );
         //    - ReadOnly
+        assert_eq!(
+            doc.find("input:read-only").nodes(),
+            vec![
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("checked", "checked"),
+                    ("type", "radio"),
+                    ("value", "male"),
+                    ("name", "gender"),
+                    ("read-only", "read-only")
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("type", "checkbox"),
+                    ("value", "Car"),
+                    ("read-only", "")
+                ])),
+            ]
+        );
         //    - ReadWrite
+        assert_eq!(
+            doc.find("input:read-write").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("input").attributes(vec![("type", "text"), ("value", "Mickey"),])
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("input").attributes(vec![("type", "text"), ("value", "Mouse"),])
+                ),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("value", "Disneyland"),
+                    ("disabled", "disabled"),
+                    ("type", "text"),
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("type", "radio"),
+                    ("name", "gender"),
+                    ("value", "female"),
+                    ("required", "required"),
+                    ("read-only", "false")
+                ])),
+                &HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                    ("value", "Bike"),
+                    ("checked", "checked"),
+                    ("type", "checkbox"),
+                    ("required", "")
+                ])),
+            ]
+        );
         //    - Empty
+        assert_eq!(
+            doc.find("div:empty").nodes(),
+            vec![&HtmlNode::Tag(HtmlTag::new("div").classes(vec!["alone"]))]
+        );
         //    - FirstChild
+        assert_eq!(
+            doc.find("option:first-child").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "blue"), ("selected", ""),])
+                    .contents(vec![HtmlNode::new_text("Blue")]),
+            ),]
+        );
         //    - LastChild
+        assert_eq!(
+            doc.find("option:last-child").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "yellow"),])
+                    .contents(vec![HtmlNode::new_text("Yellow")]),
+            ),]
+        );
         //    - NthChild (exact/functional)
+        assert_eq!(
+            doc.find("option:nth-child(2)").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "red"),])
+                    .contents(vec![HtmlNode::new_text("Red")]),
+            ),]
+        );
+        assert_eq!(
+            doc.find("option:nth-child(2n+1)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-child(-2n+3)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-child(odd)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-child(even)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
         //    - NthLastChild (exact/functional)
+        assert_eq!(
+            doc.find("option:nth-last-child(2)").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "green"),])
+                    .contents(vec![HtmlNode::new_text("Green")]),
+            ),]
+        );
+        assert_eq!(
+            doc.find("option:nth-last-child(2n+1)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-last-child(-2n+3)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-last-child(odd)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-last-child(even)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+            ]
+        );
         //    - OnlyChild
+        assert_eq!(
+            doc.find("div:only-child").nodes(),
+            vec![&HtmlNode::Tag(HtmlTag::new("div").classes(vec!["alone"]))]
+        );
         //    - FirstOfType
+        assert_eq!(
+            doc.find("option:first-of-type").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "blue"), ("selected", ""),])
+                    .contents(vec![HtmlNode::new_text("Blue")]),
+            ),]
+        );
         //    - LastOfType
+        assert_eq!(
+            doc.find("option:last-of-type").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "yellow"),])
+                    .contents(vec![HtmlNode::new_text("Yellow")]),
+            ),]
+        );
         //    - NthOfType (exact/functional)
+        assert_eq!(
+            doc.find("option:nth-of-type(2)").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "red"),])
+                    .contents(vec![HtmlNode::new_text("Red")]),
+            ),]
+        );
+        assert_eq!(
+            doc.find("option:nth-of-type(2n+1)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-of-type(-2n+3)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-of-type(odd)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-of-type(even)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
+        //    - NthLastOfType (exact/functional)
+        assert_eq!(
+            doc.find("option:nth-last-of-type(2)").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "green"),])
+                    .contents(vec![HtmlNode::new_text("Green")]),
+            ),]
+        );
+        assert_eq!(
+            doc.find("option:nth-last-of-type(2n+1)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-last-of-type(-2n+3)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-last-of-type(odd)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "red"),])
+                        .contents(vec![HtmlNode::new_text("Red")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "yellow"),])
+                        .contents(vec![HtmlNode::new_text("Yellow")]),
+                ),
+            ]
+        );
+        assert_eq!(
+            doc.find("option:nth-last-of-type(even)").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "blue"), ("selected", ""),])
+                        .contents(vec![HtmlNode::new_text("Blue")]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("option")
+                        .attributes(vec![("value", "green"),])
+                        .contents(vec![HtmlNode::new_text("Green")]),
+                ),
+            ]
+        );
         //    - OnlyOfType
+        assert_eq!(
+            doc.find("p:only-of-type").nodes(),
+            vec![&HtmlNode::Tag(HtmlTag::new("p").contents(vec![
+                HtmlNode::new_text("A HTML document for testing purposes.",)
+            ])),]
+        );
         //    - Not
+        assert_eq!(
+            doc.find("tr:not(#first-data-row)").nodes(),
+            vec![
+                &HtmlNode::Tag(HtmlTag::new("tr").contents(vec![
+                    HtmlNode::new_text("\n                    "),
+                    HtmlNode::Tag(
+                        HtmlTag::new("th").contents(vec![HtmlNode::new_text("Company")],)
+                    ),
+                    HtmlNode::new_text("\n                    "),
+                    HtmlNode::Tag(
+                        HtmlTag::new("th").contents(vec![HtmlNode::new_text("Contact")],)
+                    ),
+                    HtmlNode::new_text("\n                    "),
+                    HtmlNode::Tag(
+                        HtmlTag::new("th").contents(vec![HtmlNode::new_text("Country")],)
+                    ),
+                    HtmlNode::new_text("\n                "),
+                ])),
+                &HtmlNode::Tag(
+                    HtmlTag::new("tr")
+                        .attributes(vec![("custom", "red",)])
+                        .contents(vec![
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "reds",)])
+                                    .contents(vec![HtmlNode::new_text(
+                                        "Centro comercial Moctezuma",
+                                    )],),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "re-ds",)])
+                                    .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                            ),
+                            HtmlNode::new_text("\n                    ",),
+                            HtmlNode::Tag(
+                                HtmlTag::new("td")
+                                    .attributes(vec![("custom", "something else",)])
+                                    .contents(vec![HtmlNode::new_text("Mexico"),]),
+                            ),
+                            HtmlNode::new_text("\n                ",),
+                        ]),
+                ),
+            ]
+        );
         //    - Root
+        assert_eq!(
+            doc.find(":root").nodes(),
+            vec![&HtmlNode::Tag(HtmlTag::new("html").contents(vec![
+                HtmlNode::new_text("\n    "),
+                HtmlNode::Tag(HtmlTag::new("head").contents(vec![
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(HtmlTag::new("meta").attributes(vec![
+                            ("content", "text/html; charset=UTF-8"),
+                            ("http-equiv", "Content-Type"),
+                        ])),
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(
+                            HtmlTag::new("title").contents(vec![HtmlNode::Text(
+                                "A Sample HTML Document".to_owned(),
+                            )]),
+                        ),
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(HtmlTag::new("meta").attributes(vec![
+                            ("name", "description"),
+                            ("content", "A HTML document for testing purposes."),
+                        ])),
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(HtmlTag::new("meta").attributes(vec![
+                            ("name".to_owned(), "author".to_owned()),
+                            ("content".to_owned(), "HB".to_owned()),
+                        ])),
+                        HtmlNode::new_text("\n        "),
+                        HtmlNode::Tag(HtmlTag::new("meta").attributes(vec![
+                            ("name", "viewport"),
+                            ("content", "width=device-width, initial-scale=1"),
+                        ])),
+                        HtmlNode::new_text("\n    "),
+                    ])),
+                HtmlNode::new_text("\n    "),
+                HtmlNode::Tag(HtmlTag::new("body").contents(vec![
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("h1")
+                                    .classes(vec!["heading"])
+                                    .contents(vec![HtmlNode::new_text("Test HTML Document")]),
+                            ),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(HtmlTag::new("p").contents(vec![HtmlNode::new_text(
+                                "A HTML document for testing purposes.",
+                            )])),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("div")
+                                    .classes(vec!["listbox", "shadow"])
+                                    .contents(vec![
+                                        HtmlNode::new_text("List of dairy items:\n            "),
+                                        HtmlNode::Tag(HtmlTag::new("ul").contents(vec![
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("li")
+                                                        .contents(vec![HtmlNode::new_text("Milk")]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("li").contents(vec![
+                                                        HtmlNode::new_text("Cheese"),
+                                                    ]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("li").contents(vec![
+                                                        HtmlNode::new_text("Yoghurt"),
+                                                    ]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("li").contents(vec![
+                                                        HtmlNode::new_text("Cream"),
+                                                    ]),
+                                                ),
+                                                HtmlNode::new_text("\n            "),
+                                            ])),
+                                        HtmlNode::new_text("\n        "),
+                                    ]),
+                            ),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(HtmlTag::new("div").classes(vec!["top"]).contents(vec![
+                                HtmlNode::Tag(HtmlTag::new("div").classes(vec!["alone"])),
+                                HtmlNode::new_text("That div is empty..."),
+                            ])),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(
+                                HtmlTag::new("div")
+                                    .classes(vec!["tablebox", "shadow"])
+                                    .contents(vec![
+                                        HtmlNode::new_text("Table of values:\n            "),
+                                        HtmlNode::Tag(HtmlTag::new("table").contents(vec![
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(HtmlTag::new("tr").contents(vec![
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Company")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Contact")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                    "),
+                                                    HtmlNode::Tag(HtmlTag::new("th").contents(
+                                                        vec![HtmlNode::new_text("Country")],
+                                                    )),
+                                                    HtmlNode::new_text("\n                "),
+                                                ])),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("tr")
+                                                        .ids(vec!["first-data-row"])
+                                                        .contents(vec![
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text(
+                                                                        "Alfreds Futterkiste",
+                                                                    ),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text(
+                                                                        "Maria Anders",
+                                                                    ),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").contents(vec![
+                                                                    HtmlNode::new_text("Germany"),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                ",
+                                                            ),
+                                                        ]),
+                                                ),
+                                                HtmlNode::new_text("\n                "),
+                                                HtmlNode::Tag(
+                                                    HtmlTag::new("tr")
+                                                        .attributes(vec![(
+                                                            "custom",
+                                                            "red",
+                                                        )])
+                                                        .contents(vec![
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td")
+                                                                    .attributes(vec![(
+                                                                        "custom", "reds",
+                                                                    )])
+                                                                    .contents(
+                                                                        vec![HtmlNode::new_text(
+                                                                "Centro comercial Moctezuma",
+                                                            )],
+                                                                    ),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td")
+                                                                    .attributes(vec![(
+                                                                        "custom", "re-ds",
+                                                                    )])
+                                                                    .contents(vec![
+                                                                        HtmlNode::new_text(
+                                                                            "Francisco Chang",
+                                                                        ),
+                                                                    ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                    ",
+                                                            ),
+                                                            HtmlNode::Tag(
+                                                                HtmlTag::new("td").attributes(vec![(
+                                                            "custom",
+                                                            "something else",
+                                                        )]).contents(vec![
+                                                                    HtmlNode::new_text("Mexico"),
+                                                                ]),
+                                                            ),
+                                                            HtmlNode::new_text(
+                                                                "\n                ",
+                                                            ),
+                                                        ]),
+                                                ),
+                                                HtmlNode::new_text("\n            "),
+                                            ])),
+                                        HtmlNode::new_text("\n        "),
+                                    ]),
+                            ),
+                            HtmlNode::new_text("\n        "),
+                            HtmlNode::Tag(HtmlTag::new("div").contents(vec![
+                                HtmlNode::new_text("Form stuffs\n            "),
+                                HtmlNode::Tag(HtmlTag::new("form").contents(vec![
+                                        HtmlNode::new_text("\n              First name: "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("type", "text"),
+                                            ("value", "Mickey"),
+                                        ])),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              Last name: "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("type", "text"),
+                                            ("value", "Mouse"),
+                                        ])),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              Country: "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("value", "Disneyland"),
+                                            ("disabled", "disabled"),
+                                            ("type", "text"),
+                                        ])),
+                                        HtmlNode::new_text("\n              "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("checked", "checked"),
+                                            ("type", "radio"),
+                                            ("value", "male"),
+                                            ("name", "gender"),
+                                            ("read-only","read-only")
+                                        ])),
+                                        HtmlNode::new_text(" Male"),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("type", "radio"),
+                                            ("name", "gender"),
+                                            ("value", "female"),
+                                            ("required", "required"),
+                                            ("read-only","false")
+                                        ])),
+                                        HtmlNode::new_text(" Female"),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("value", "Bike"),
+                                            ("checked", "checked"),
+                                            ("type", "checkbox"),
+                                            ("required","")
+                                        ])),
+                                        HtmlNode::new_text(" I have a bike"),
+                                        HtmlNode::Tag(HtmlTag::new("br")),
+                                        HtmlNode::new_text("\n              "),
+                                        HtmlNode::Tag(HtmlTag::new("input").attributes(vec![
+                                            ("type", "checkbox"),
+                                            ("value", "Car"),
+                                            ("read-only","")
+                                        ])),
+                                        HtmlNode::new_text(" I have a car \n            "),
+                                    ])),
+                                HtmlNode::new_text("\n        "),
+                            ])),
+                            HtmlNode::new_text("\n    "),
+                            HtmlNode::Tag(HtmlTag::new("div").contents(vec![
+                                HtmlNode::new_text(" Options\n        "),
+                                HtmlNode::Tag(HtmlTag::new("select").contents(vec![
+                                            HtmlNode::new_text("\n          "),
+                                            HtmlNode::Tag(
+                                                HtmlTag::new("option")
+                                                    .attributes(vec![
+                                                        ("value", "blue"),
+                                                        ("selected", ""),
+                                                    ])
+                                                    .contents(vec![HtmlNode::new_text("Blue")]),
+                                            ),
+                                            HtmlNode::new_text("\n          "),
+                                            HtmlNode::Tag(
+                                                HtmlTag::new("option")
+                                                    .attributes(vec![
+                                                        ("value", "red"),
+                                                    ])
+                                                    .contents(vec![HtmlNode::new_text("Red")]),
+                                            ),
+                                            HtmlNode::new_text("\n          "),
+                                            HtmlNode::Tag(
+                                                HtmlTag::new("option")
+                                                    .attributes(vec![
+                                                        ("value", "green"),
+                                                    ])
+                                                    .contents(vec![HtmlNode::new_text("Green")]),
+                                            ),
+                                            HtmlNode::new_text("\n          "),
+                                            HtmlNode::Tag(
+                                                HtmlTag::new("option")
+                                                    .attributes(vec![
+                                                        ("value", "yellow"),
+                                                    ])
+                                                    .contents(vec![HtmlNode::new_text("Yellow")]),
+                                            ),
+                                            HtmlNode::new_text("\n          "),
+                                        ])),
+                                HtmlNode::new_text("\n        "),
+                            ])),
+                        ])),
+                HtmlNode::new_text("\n"),
+            ]))]
+        );
     }
 }
 
