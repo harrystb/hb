@@ -1,7 +1,7 @@
 use crate::error::{HtmlMatchError, ParseHtmlError};
 use crate::objects::{
     CssAttributeCompareType, CssRefiner, CssRefinerNumberType, CssSelector, CssSelectorItem,
-    CssSelectorRelationship, HtmlDocument, HtmlNode, HtmlTag,
+    CssSelectorRelationship, CssSelectorRule, HtmlDocument, HtmlNode, HtmlTag,
 };
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
@@ -1055,84 +1055,89 @@ impl<'a> HtmlQueryResult<'a> {
         true
     }
 
+    fn matches_selector_rule(&self, selector_rule: &CssSelectorRule) -> bool {
+        let mut rules_passed = true;
+        let mut moveable_pointer = self.clone();
+        let mut mut_selector_rule = selector_rule.clone();
+        while let Some(rule) = mut_selector_rule.rules.pop() {
+            match rule {
+                CssSelectorRelationship::Current(selector_item) => {
+                    if !self.matches_item(&selector_item) {
+                        rules_passed = false;
+                        break;
+                    }
+                }
+                CssSelectorRelationship::Parent(selector_item) => {
+                    match moveable_pointer.move_to_parent() {
+                        Some(_) => {
+                            if !moveable_pointer.matches_item(&selector_item) {
+                                rules_passed = false;
+                                break;
+                            }
+                        }
+                        None => {
+                            rules_passed = false;
+                            break;
+                        }
+                    }
+                }
+                CssSelectorRelationship::Ancestor(selector_item) => {
+                    while let Some(_) = moveable_pointer.move_to_parent() {
+                        if moveable_pointer.matches_item(&selector_item) {
+                            match moveable_pointer.matches_selector_rule(&mut_selector_rule) {
+                                true => return true, // We checked the rest of the rules using the moveable_pointer
+                                false => (),
+                            }
+                        }
+                    }
+                    rules_passed = false;
+                    break;
+                }
+                CssSelectorRelationship::PreviousSibling(selector_item) => {
+                    let mut one_matches = false;
+                    while let Some(_) = moveable_pointer.move_to_previous_sibling() {
+                        if moveable_pointer.matches_item(&selector_item) {
+                            one_matches = true;
+                            break;
+                        }
+                    }
+                    if !one_matches {
+                        rules_passed = false;
+                        break;
+                    }
+                }
+                CssSelectorRelationship::PreviousSiblingOnce(selector_item) => {
+                    match moveable_pointer.move_to_previous_sibling() {
+                        None => {
+                            rules_passed = false;
+                            break;
+                        }
+                        Some(_) => {
+                            if !moveable_pointer.matches_item(&selector_item) {
+                                rules_passed = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rules_passed
+    }
+
     /// Checks if the node pointed to matches the CSS style selector provided.
     pub fn matches<T: Into<&'a CssSelector>>(&self, selector: T) -> bool {
         let selector = selector.into();
         match selector {
             CssSelector::Any => true,
             CssSelector::Specific(v) => {
-                let mut passed = false;
                 for selector_rule in v {
-                    let mut rules_passed = true;
-                    for rule in &selector_rule.rules {
-                        match rule {
-                            CssSelectorRelationship::Current(selector_item) => {
-                                if !self.matches_item(&selector_item) {
-                                    rules_passed = false;
-                                    break;
-                                }
-                            }
-                            CssSelectorRelationship::Parent(selector_item) => {
-                                let mut parent = self.clone();
-                                parent.path.pop();
-                                if !parent.matches_item(&selector_item) {
-                                    rules_passed = false;
-                                    break;
-                                }
-                            }
-                            CssSelectorRelationship::Ancestor(selector_item) => {
-                                let mut ancestor = self.clone();
-                                let mut one_matches = false;
-                                while let Some(_) = ancestor.move_to_parent() {
-                                    if ancestor.matches_item(&selector_item) {
-                                        one_matches = true;
-                                        break;
-                                    }
-                                }
-                                if !one_matches {
-                                    rules_passed = false;
-                                    break;
-                                }
-                            }
-                            CssSelectorRelationship::PreviousSibling(selector_item) => {
-                                let mut sibling = self.clone();
-                                let mut one_matches = false;
-                                while let Some(_) = sibling.move_to_previous_sibling() {
-                                    if sibling.matches_item(&selector_item) {
-                                        one_matches = true;
-                                        break;
-                                    }
-                                }
-                                if !one_matches {
-                                    rules_passed = false;
-                                    break;
-                                }
-                            }
-                            CssSelectorRelationship::PreviousSiblingOnce(selector_item) => {
-                                let mut sibling = self.clone();
-                                match sibling.move_to_previous_sibling() {
-                                    None => {
-                                        rules_passed = false;
-                                        break;
-                                    }
-                                    Some(_) => {
-                                        if !sibling.matches_item(&selector_item) {
-                                            rules_passed = false;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if rules_passed == false {
-                            break;
-                        }
-                    }
-                    if rules_passed == true {
-                        passed = true;
+                    match self.matches_selector_rule(&selector_rule) {
+                        true => return true,
+                        false => (),
                     }
                 }
-                passed
+                false
             }
         }
     }
@@ -1173,7 +1178,7 @@ mod html_match_tests {
                 .to_vec()
             })]
         );
-        q.find_str("p");
+        q.find_str("p").unwrap();
         assert_eq!(
             q.results
                 .iter()
@@ -2925,6 +2930,55 @@ mod html_match_tests {
                         ])),
                 HtmlNode::new_text("\n"),
             ]))]
+        );
+        // Parent
+        assert_eq!(
+            doc.find("body > p").nodes(),
+            vec![&HtmlNode::Tag(HtmlTag::new("p").contents(vec![
+                HtmlNode::new_text("A HTML document for testing purposes.",)
+            ])),]
+        );
+        // Ancestor
+        assert_eq!(
+            doc.find("div td[custom]").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "reds",)])
+                        .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "re-ds",)])
+                        .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "something else",)])
+                        .contents(vec![HtmlNode::new_text("Mexico"),]),
+                ),
+            ]
+        );
+        // Multi- Parent/Anscestor
+        assert_eq!(
+            doc.find(".tablebox > table td[custom]").nodes(),
+            vec![
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "reds",)])
+                        .contents(vec![HtmlNode::new_text("Centro comercial Moctezuma",)],),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "re-ds",)])
+                        .contents(vec![HtmlNode::new_text("Francisco Chang",),]),
+                ),
+                &HtmlNode::Tag(
+                    HtmlTag::new("td")
+                        .attributes(vec![("custom", "something else",)])
+                        .contents(vec![HtmlNode::new_text("Mexico"),]),
+                ),
+            ]
         );
     }
 }

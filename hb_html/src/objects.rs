@@ -397,7 +397,7 @@ impl FromStr for HtmlDocument {
 // when it finds a node that matches (or exiting early if the
 // specific node did not match - eg parent/sibling)
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// Represents the relationship that is next to be matched in the list of selector items.
 pub enum CssSelectorRelationship {
     Parent(CssSelectorItem),
@@ -407,7 +407,7 @@ pub enum CssSelectorRelationship {
     Current(CssSelectorItem),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// represents all of the CSS selectors which follow a :, for example :last-child
 pub enum CssRefiner {
     Checked,
@@ -433,7 +433,7 @@ pub enum CssRefiner {
     Root,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// Used for CSS Selectors such as :nth-child(x) where x can be odd, even or a specific number
 pub enum CssRefinerNumberType {
     Odd,
@@ -442,7 +442,7 @@ pub enum CssRefinerNumberType {
     Functional((i32, i32)),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// Used to represents the different types of attributes selections for example [attribute=value]
 pub enum CssAttributeCompareType {
     /// [attribute]
@@ -461,7 +461,7 @@ pub enum CssAttributeCompareType {
     ContainsWord((String, String)),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// Represents a CSS selector for a particular node
 pub struct CssSelectorItem {
     pub tag: Option<String>,
@@ -483,7 +483,7 @@ impl CssSelectorItem {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// Represents a rule that must match for a CSS selector
 pub struct CssSelectorRule {
     pub rules: Vec<CssSelectorRelationship>,
@@ -495,7 +495,7 @@ impl CssSelectorRule {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// Represents a CSS selector which could be anything (*) or based on a some selection rules.
 /// CSS selectors all multiple different match rules seperated by a comma. This is handle by
 /// having each matching rule in a vector.
