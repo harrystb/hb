@@ -817,8 +817,6 @@ pub fn parse_css_selector_rule(selector_rule: &str) -> Result<CssSelectorRule, P
             None => break,
         };
     }
-    // reverse so that most relevant is first
-    css_rule.rules.reverse();
     Ok(css_rule)
 }
 
@@ -1538,15 +1536,15 @@ mod parse_css_selector_tests {
                 "div p",
                 CssSelectorRule {
                     rules: vec![
-                        CssSelectorRelationship::Current(CssSelectorItem {
-                            tag: Some("p".to_owned()),
+                        CssSelectorRelationship::Ancestor(CssSelectorItem {
+                            tag: Some("div".to_owned()),
                             classes: None,
                             ids: None,
                             refiners: None,
                             attributes: None,
                         }),
-                        CssSelectorRelationship::Ancestor(CssSelectorItem {
-                            tag: Some("div".to_owned()),
+                        CssSelectorRelationship::Current(CssSelectorItem {
+                            tag: Some("p".to_owned()),
                             classes: None,
                             ids: None,
                             refiners: None,
@@ -1559,13 +1557,6 @@ mod parse_css_selector_tests {
                 "div > p",
                 CssSelectorRule {
                     rules: vec![
-                        CssSelectorRelationship::Current(CssSelectorItem {
-                            tag: Some("p".to_owned()),
-                            classes: None,
-                            ids: None,
-                            refiners: None,
-                            attributes: None,
-                        }),
                         CssSelectorRelationship::Parent(CssSelectorItem {
                             tag: Some("div".to_owned()),
                             classes: None,
@@ -1573,15 +1564,22 @@ mod parse_css_selector_tests {
                             refiners: None,
                             attributes: None,
                         }),
-                    ],
+                        CssSelectorRelationship::Current(CssSelectorItem {
+                            tag: Some("p".to_owned()),
+                            classes: None,
+                            ids: None,
+                            refiners: None,
+                            attributes: None,
+                        }),
+                        ],
                 },
             ),
             (
                 "div a > p",
                 CssSelectorRule {
                     rules: vec![
-                        CssSelectorRelationship::Current(CssSelectorItem {
-                            tag: Some("p".to_owned()),
+                        CssSelectorRelationship::Ancestor(CssSelectorItem {
+                            tag: Some("div".to_owned()),
                             classes: None,
                             ids: None,
                             refiners: None,
@@ -1594,8 +1592,8 @@ mod parse_css_selector_tests {
                             refiners: None,
                             attributes: None,
                         }),
-                        CssSelectorRelationship::Ancestor(CssSelectorItem {
-                            tag: Some("div".to_owned()),
+                        CssSelectorRelationship::Current(CssSelectorItem {
+                            tag: Some("p".to_owned()),
                             classes: None,
                             ids: None,
                             refiners: None,
@@ -1608,8 +1606,8 @@ mod parse_css_selector_tests {
                 "div a ~ p",
                 CssSelectorRule {
                     rules: vec![
-                        CssSelectorRelationship::Current(CssSelectorItem {
-                            tag: Some("p".to_owned()),
+                        CssSelectorRelationship::Ancestor(CssSelectorItem {
+                            tag: Some("div".to_owned()),
                             classes: None,
                             ids: None,
                             refiners: None,
@@ -1622,8 +1620,8 @@ mod parse_css_selector_tests {
                             refiners: None,
                             attributes: None,
                         }),
-                        CssSelectorRelationship::Ancestor(CssSelectorItem {
-                            tag: Some("div".to_owned()),
+                        CssSelectorRelationship::Current(CssSelectorItem {
+                            tag: Some("p".to_owned()),
                             classes: None,
                             ids: None,
                             refiners: None,

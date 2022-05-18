@@ -48,6 +48,7 @@ impl<'a> HtmlQueryResult<'a> {
         self.path.pop();
         Some(())
     }
+    
     pub fn move_to_previous_sibling(&mut self) -> Option<()> {
         if self.path.len() == 0 {
             return None;
@@ -55,9 +56,24 @@ impl<'a> HtmlQueryResult<'a> {
         if self.path[self.path.len() - 1].1 == 0 {
             return None;
         }
-        let mut end = self.path.pop().unwrap();
-        end.1 = end.1 - 1;
-        self.path.push(end);
+        let mut previous_tag_sibling = None;
+        for i in (0..self.path[self.path.len()-1].1).rev() {
+            match self.path[self.path.len()-1].0[i] {
+                HtmlNode::Tag(_) => {
+                    previous_tag_sibling = Some(i);
+                    break;
+                }
+                _ => (),
+            }
+        }
+        match previous_tag_sibling {
+            None => return None,
+            Some(i) => {
+                let mut end = self.path.pop().unwrap();
+                end.1 = i;
+                self.path.push(end);
+            }
+        }
         Some(())
     }
     pub fn move_to_next_sibling(&mut self) -> Option<()> {
@@ -1056,28 +1072,24 @@ impl<'a> HtmlQueryResult<'a> {
     }
 
     fn matches_selector_rule(&self, selector_rule: &CssSelectorRule) -> bool {
-        let mut rules_passed = true;
         let mut moveable_pointer = self.clone();
         let mut mut_selector_rule = selector_rule.clone();
         while let Some(rule) = mut_selector_rule.rules.pop() {
             match rule {
                 CssSelectorRelationship::Current(selector_item) => {
                     if !self.matches_item(&selector_item) {
-                        rules_passed = false;
-                        break;
+                        return false;
                     }
                 }
                 CssSelectorRelationship::Parent(selector_item) => {
                     match moveable_pointer.move_to_parent() {
                         Some(_) => {
                             if !moveable_pointer.matches_item(&selector_item) {
-                                rules_passed = false;
-                                break;
+                                return false;
                             }
                         }
                         None => {
-                            rules_passed = false;
-                            break;
+                            return false;
                         }
                     }
                 }
@@ -1090,8 +1102,7 @@ impl<'a> HtmlQueryResult<'a> {
                             }
                         }
                     }
-                    rules_passed = false;
-                    break;
+                    return false;
                 }
                 CssSelectorRelationship::PreviousSibling(selector_item) => {
                     let mut one_matches = false;
@@ -1102,27 +1113,24 @@ impl<'a> HtmlQueryResult<'a> {
                         }
                     }
                     if !one_matches {
-                        rules_passed = false;
-                        break;
+                        return false;
                     }
                 }
                 CssSelectorRelationship::PreviousSiblingOnce(selector_item) => {
                     match moveable_pointer.move_to_previous_sibling() {
                         None => {
-                            rules_passed = false;
-                            break;
+                            return false;
                         }
                         Some(_) => {
                             if !moveable_pointer.matches_item(&selector_item) {
-                                rules_passed = false;
-                                break;
+                                return false;
                             }
                         }
                     }
                 }
             }
         }
-        rules_passed
+        true
     }
 
     /// Checks if the node pointed to matches the CSS style selector provided.
@@ -2979,6 +2987,22 @@ mod html_match_tests {
                         .contents(vec![HtmlNode::new_text("Mexico"),]),
                 ),
             ]
+        );
+        // previous sibling
+        assert_eq!(
+            doc.find("td[custom=re-ds] ~ td").nodes(),
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("td")
+                    .attributes(vec![("custom", "something else",)])
+                    .contents(vec![HtmlNode::new_text("Mexico"),]),
+            ),]
+        );
+        // previous sibling once
+        assert_eq!(
+            doc.find("option[value=blue] + option").nodes(),
+            vec![&HtmlNode::Tag(HtmlTag::new("option")
+                .attributes(vec![("value", "red"),])
+                .contents(vec![HtmlNode::new_text("Red")])),]
         );
     }
 }
