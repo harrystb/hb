@@ -48,7 +48,7 @@ impl<'a> HtmlQueryResult<'a> {
         self.path.pop();
         Some(())
     }
-    
+
     pub fn move_to_previous_sibling(&mut self) -> Option<()> {
         if self.path.len() == 0 {
             return None;
@@ -57,8 +57,8 @@ impl<'a> HtmlQueryResult<'a> {
             return None;
         }
         let mut previous_tag_sibling = None;
-        for i in (0..self.path[self.path.len()-1].1).rev() {
-            match self.path[self.path.len()-1].0[i] {
+        for i in (0..self.path[self.path.len() - 1].1).rev() {
+            match self.path[self.path.len() - 1].0[i] {
                 HtmlNode::Tag(_) => {
                     previous_tag_sibling = Some(i);
                     break;
@@ -84,9 +84,24 @@ impl<'a> HtmlQueryResult<'a> {
         if i + 1 == v.len() {
             return None;
         }
-        let mut end = self.path.pop().unwrap();
-        end.1 = end.1 + 1;
-        self.path.push(end);
+        let mut next_tag_sibling = None;
+        for i in (self.path[self.path.len() - 1].1 + 1)..self.path[self.path.len() - 1].0.len() {
+            match self.path[self.path.len() - 1].0[i] {
+                HtmlNode::Tag(_) => {
+                    next_tag_sibling = Some(i);
+                    break;
+                }
+                _ => (),
+            }
+        }
+        match next_tag_sibling {
+            None => return None,
+            Some(i) => {
+                let mut end = self.path.pop().unwrap();
+                end.1 = i;
+                self.path.push(end);
+            }
+        }
         Some(())
     }
     pub fn move_to_first_child(&mut self) -> Option<()> {
@@ -3000,9 +3015,11 @@ mod html_match_tests {
         // previous sibling once
         assert_eq!(
             doc.find("option[value=blue] + option").nodes(),
-            vec![&HtmlNode::Tag(HtmlTag::new("option")
-                .attributes(vec![("value", "red"),])
-                .contents(vec![HtmlNode::new_text("Red")])),]
+            vec![&HtmlNode::Tag(
+                HtmlTag::new("option")
+                    .attributes(vec![("value", "red"),])
+                    .contents(vec![HtmlNode::new_text("Red")])
+            ),]
         );
     }
 }
