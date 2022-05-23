@@ -230,6 +230,14 @@ impl HtmlTag {
         res.push_str(format!("</{}>", self.tag).as_str());
         res
     }
+
+    pub fn text(&self) -> String {
+        let mut output = String::new();
+        for c in &self.contents {
+            output.push_str(c.text().as_str());
+        }
+        output
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -268,6 +276,14 @@ impl HtmlNode {
     }
     pub fn new_tag<T: Into<String>>(tag: T) -> HtmlNode {
         HtmlNode::Tag(HtmlTag::new(tag.into()))
+    }
+
+    pub fn text(&self) -> String {
+        match self {
+            HtmlNode::Tag(t) => t.text(),
+            HtmlNode::Comment(_) => String::new(),
+            HtmlNode::Text(t) => t.clone(),
+        }
     }
 }
 

@@ -1,6 +1,9 @@
+use std::error::Error;
+
 pub struct HtmlMatchError {
     msg: String,
 }
+
 impl HtmlMatchError {
     pub fn new(msg: String) -> HtmlMatchError {
         HtmlMatchError { msg: msg }
@@ -80,5 +83,23 @@ impl std::fmt::Debug for ParseHtmlError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(f, "Html Doc Error: '{}'", self.msg)?;
         Ok(())
+    }
+}
+
+impl Error for ParseHtmlError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
+impl Error for HtmlMatchError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
+impl Error for HtmlDocError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
