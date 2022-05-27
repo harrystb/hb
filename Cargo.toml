@@ -8,4 +8,5 @@
 members = [
     "hb_html",
     "hb_parse",
+    "hb_webrecipe",
 ]
