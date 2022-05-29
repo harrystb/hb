@@ -8,9 +8,8 @@
 //! use hb_parse::checkers;
 //! let mut s = sources::StrSource::new("tests");
 //! let mut parser = HbParser::new(&mut s);
-//! let mut checkers : Vec<Box<dyn checkers::ParseChecker>> = vec![Box::new(checkers::CharChecker::new('e'))];
 //! assert_eq!(
-//!     parser.parse(&mut checkers),
+//!     parser.parse(Box::new(&mut checkers::CharChecker::new('e', checkers::CheckerMode::UpToAndIncluding))),
 //!     Ok("te".to_owned())
 //! );
 //! ```
@@ -38,23 +37,20 @@ impl<'a> HbParser<'a> {
     /// use hb_parse::checkers;
     /// let mut s = sources::StrSource::new("tests");
     /// let mut parser = HbParser::new(&mut s);
-    /// let mut checkers : Vec<Box<dyn checkers::ParseChecker>> = vec![Box::new(checkers::CharChecker::new('e'))];
     /// assert_eq!(
-    ///     parser.parse(&mut checkers),
+    ///     parser.parse(Box::new(&mut checkers::CharChecker::new('e', checkers::CheckerMode::UpToAndIncluding))),
     ///     Ok("te".to_owned())
     /// );
     /// ```
     pub fn parse(
         &mut self,
-        checkers: &mut Vec<Box<dyn checkers::ParseChecker>>,
+        checker: Box<&mut dyn checkers::ParseChecker>,
     ) -> Result<String, ParseError> {
-        let mut buf = String::new();
         while let Some(c) = self.source.next() {
-            buf.push(c);
-            for checker in checkers.iter_mut() {
-                if checker.parse(c) {
-                    return Ok(buf);
-                }
+            match checker.parse(c) {
+                Ok(Some(r)) => return Ok(r),
+                Ok(None) => (),
+                Err(e) => return Err(e),
             }
         }
         Err(ParseError::with_msg(
