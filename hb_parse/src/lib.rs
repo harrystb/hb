@@ -3,15 +3,15 @@
 //! # Example
 //!
 //! ```
-//! use hb_parse::{HbParser, ParseEnding, ParseError};
-//! let mut p = HbParser::new("tests");
-//! let mut p = HbParser::new("tests");
-//! assert_eq!(p.check(ParseEnding::AtChar('e')), Ok(1));
+//! use hb_parse::HbParser;
+//! use hb_parse::sources;
+//! use hb_parse::checkers;
+//! let mut s = sources::StrSource::new("tests");
+//! let mut parser = HbParser::new(&mut s);
+//! let mut checkers : Vec<Box<dyn checkers::ParseChecker>> = vec![Box::new(checkers::CharChecker::new('e'))];
 //! assert_eq!(
-//!     p.check(ParseEnding::AtChar('z')),
-//!     Err(ParseError::with_msg(
-//!         "could not find 'z' in 'tests' when starting at 0"
-//!     ))
+//!     parser.parse(&mut checkers),
+//!     Ok("te".to_owned())
 //! );
 //! ```
 pub mod checkers;
@@ -20,12 +20,12 @@ pub mod sources;
 pub use error::ParseError;
 
 pub struct HbParser<'a> {
-    loc: usize,
+    source: &'a mut dyn sources::Source,
 }
 
 impl<'a> HbParser<'a> {
-    pub fn new(s: &'a str) -> HbParser {
-        HbParser { s: s, loc: 0 }
+    pub fn new(source: &'a mut dyn sources::Source) -> HbParser {
+        HbParser { source: source }
     }
 
     /// Checks in the string 's' for the ending from the location 'loc'
@@ -33,17 +33,34 @@ impl<'a> HbParser<'a> {
     /// # Example
     ///
     /// ```
-    /// use hb_parse::{HbParser, ParseEnding, ParseError};
-    /// let mut p = HbParser::new("tests");
-    /// assert_eq!(p.check(ParseEnding::AtChar('e')), Ok(1));
+    /// use hb_parse::HbParser;
+    /// use hb_parse::sources;
+    /// use hb_parse::checkers;
+    /// let mut s = sources::StrSource::new("tests");
+    /// let mut parser = HbParser::new(&mut s);
+    /// let mut checkers : Vec<Box<dyn checkers::ParseChecker>> = vec![Box::new(checkers::CharChecker::new('e'))];
     /// assert_eq!(
-    ///     p.check(ParseEnding::AtChar('z')),
-    ///     Err(ParseError::with_msg(
-    ///         "could not find 'z' in 'tests' when starting at 0"
-    ///     ))
+    ///     parser.parse(&mut checkers),
+    ///     Ok("te".to_owned())
     /// );
     /// ```
-    pub fn parse(&self) -> Result<usize, ParseError> {}
+    pub fn parse(
+        &mut self,
+        checkers: &mut Vec<Box<dyn checkers::ParseChecker>>,
+    ) -> Result<String, ParseError> {
+        let mut buf = String::new();
+        while let Some(c) = self.source.next() {
+            buf.push(c);
+            for checker in checkers.iter_mut() {
+                if checker.parse(c) {
+                    return Ok(buf);
+                }
+            }
+        }
+        Err(ParseError::with_msg(
+            "ran out of chars without any checkers passing",
+        ))
+    }
 }
 
 #[cfg(test)]

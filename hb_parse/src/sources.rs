@@ -1,23 +1,37 @@
 pub trait Source {
     fn next(&mut self) -> Option<char>;
+    fn peek(&mut self) -> Option<char>;
 }
 
 pub struct StrSource<'a> {
     s: &'a str,
-    iter: std::str::Chars,
+    iter: std::str::Chars<'a>,
+    next: Option<char>,
 }
 
-impl StrSource<'a> {
-    fn new(s: &'a str) -> StrSource {
+impl<'a> StrSource<'a> {
+    pub fn new(s: &'a str) -> StrSource<'a> {
+        let mut s_iter = s.chars();
+        let next = s_iter.next();
         StrSource {
             s: s,
-            iter: s.chars(),
+            iter: s_iter,
+            next: next,
         }
     }
 }
 
-impl Source for StrSource {
+impl Source for StrSource<'_> {
     fn next(&mut self) -> Option<char> {
-        self.iter.next()
+        match self.next {
+            None => return None,
+            Some(c) => {
+                self.next = self.iter.next();
+                return Some(c);
+            }
+        }
+    }
+    fn peek(&mut self) -> Option<char> {
+        self.next
     }
 }
