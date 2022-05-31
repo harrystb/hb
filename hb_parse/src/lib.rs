@@ -46,7 +46,7 @@ impl<'a> HbParser<'a> {
         &mut self,
         checker: Box<&mut dyn checkers::ParseChecker>,
     ) -> Result<String, ParseError> {
-        while let Some(c) = self.source.next() {
+        while let Ok(Some((_, c))) = self.source.next() {
             match checker.parse(c) {
                 Ok(Some(r)) => return Ok(r),
                 Ok(None) => (),
