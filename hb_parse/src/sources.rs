@@ -1,26 +1,26 @@
-use crate::error::{SourceError, SourceResult};
+use crate::error::{ParseError, ParseResult};
 
 /// Interface for different implementations of sources of data for the parser.
 /// Provides various function which will allow the parsing of data without having
 /// multiple buffers.
 pub trait Source {
     /// Gets the next char and moves the pointer
-    fn next(&mut self) -> SourceResult<Option<(usize, char)>>;
+    fn next(&mut self) -> ParseResult<Option<(usize, char)>>;
     /// Gets the next char but does not move the pointer
-    fn peek(&mut self) -> SourceResult<Option<(usize, char)>>;
+    fn peek(&mut self) -> ParseResult<Option<(usize, char)>>;
     /// Moves the pointer backwards
-    fn move_back(&mut self, n: usize) -> SourceResult<()>;
+    fn move_back(&mut self, n: usize) -> ParseResult<()>;
     /// Moves the pointer forwards
-    fn move_forward(&mut self, n: usize) -> SourceResult<()>;
+    fn move_forward(&mut self, n: usize) -> ParseResult<()>;
     /// Consumes the chars at the begining moving the window
     /// forward without returning any of the chars
-    fn consume(&mut self, n: usize) -> SourceResult<()>;
+    fn consume(&mut self, n: usize) -> ParseResult<()>;
     /// Extracts the chars at the begining of the window
     /// moving the window forward and returning the chars
-    fn extract(&mut self, n: usize) -> SourceResult<String>;
+    fn extract(&mut self, n: usize) -> ParseResult<String>;
     /// Reads a sub-string from the window, without affecting
     /// any pointers
-    fn read_substr(&mut self, start: usize, n: usize) -> SourceResult<String>;
+    fn read_substr(&mut self, start: usize, n: usize) -> ParseResult<String>;
     /// Get the current pointer location
     fn get_pointer_loc(&mut self) -> usize;
 }
@@ -46,7 +46,7 @@ impl<'a> StrSource<'a> {
 }
 
 impl Source for StrSource<'_> {
-    fn next(&mut self) -> SourceResult<Option<(usize, char)>> {
+    fn next(&mut self) -> ParseResult<Option<(usize, char)>> {
         match self.iter.next() {
             Some(c) => {
                 let ret = Ok(Some((self.pointer, c)));
@@ -57,16 +57,16 @@ impl Source for StrSource<'_> {
         }
     }
 
-    fn peek(&mut self) -> SourceResult<Option<(usize, char)>> {
+    fn peek(&mut self) -> ParseResult<Option<(usize, char)>> {
         match self.iter.peek() {
             Some(c) => Ok(Some((self.pointer, *c))),
             None => Ok(None),
         }
     }
 
-    fn move_back(&mut self, n: usize) -> SourceResult<()> {
+    fn move_back(&mut self, n: usize) -> ParseResult<()> {
         if self.pointer < n {
-            return Err(SourceError::with_msg(format!(
+            return Err(ParseError::with_msg(format!(
                 "attempted to move pointer ({}) back {} places past the start of the data",
                 self.pointer, n
             )));
@@ -80,9 +80,9 @@ impl Source for StrSource<'_> {
         Ok(())
     }
 
-    fn move_forward(&mut self, n: usize) -> SourceResult<()> {
+    fn move_forward(&mut self, n: usize) -> ParseResult<()> {
         if self.pointer + n > self.sub_s.len() {
-            return Err(SourceError::with_msg(format!(
+            return Err(ParseError::with_msg(format!(
                 "attempted to move pointer ({}) forward {} places past the end of the data ({})",
                 self.pointer,
                 n,
@@ -96,9 +96,9 @@ impl Source for StrSource<'_> {
         }
         Ok(())
     }
-    fn consume(&mut self, n: usize) -> SourceResult<()> {
+    fn consume(&mut self, n: usize) -> ParseResult<()> {
         if n > self.sub_s.len() {
-            return Err(SourceError::with_msg(format!(
+            return Err(ParseError::with_msg(format!(
                 "attempted to consume {} chars when only {} remain",
                 n,
                 self.sub_s.len()
@@ -125,9 +125,9 @@ impl Source for StrSource<'_> {
         Ok(())
     }
 
-    fn extract(&mut self, n: usize) -> SourceResult<String> {
+    fn extract(&mut self, n: usize) -> ParseResult<String> {
         if n > self.sub_s.len() {
-            return Err(SourceError::with_msg(format!(
+            return Err(ParseError::with_msg(format!(
                 "attempted to extract {} chars when only {} remain",
                 n,
                 self.sub_s.len()
@@ -154,16 +154,16 @@ impl Source for StrSource<'_> {
         }
         Ok(ret)
     }
-    fn read_substr(&mut self, start: usize, n: usize) -> SourceResult<String> {
+    fn read_substr(&mut self, start: usize, n: usize) -> ParseResult<String> {
         if start > self.sub_s.len() {
-            return Err(SourceError::with_msg(format!(
+            return Err(ParseError::with_msg(format!(
                 "attempted to read substring from start position {} when only {} remain",
                 start,
                 self.sub_s.len()
             )));
         }
         if start + n >= self.sub_s.len() {
-            return Err(SourceError::with_msg(format!(
+            return Err(ParseError::with_msg(format!(
                 "attempted to read a substring of {} chars when only {} remain",
                 n,
                 self.sub_s.len() - start
