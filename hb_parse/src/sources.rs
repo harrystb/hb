@@ -23,4 +23,6 @@ pub trait Source {
     fn read_substr(&mut self, start: usize, n: usize) -> ParseResult<String>;
     /// Get the current pointer location
     fn get_pointer_loc(&mut self) -> usize;
+    /// Resets the pointer to the start of the window
+    fn reset_pointer_loc(&mut self);
 }

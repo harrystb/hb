@@ -107,7 +107,7 @@ impl Source for StrSource<'_> {
             if self.pointer > n {
                 self.pointer -= n;
             } else {
-                self.pointer == 0;
+                self.pointer = 0;
             }
             // recreate sub-string and iter
             self.sub_s = &self.s[self.window_start..];
@@ -137,7 +137,7 @@ impl Source for StrSource<'_> {
             if self.pointer > n {
                 self.pointer -= n;
             } else {
-                self.pointer == 0;
+                self.pointer = 0;
             }
             // recreate sub-string and iter
             self.sub_s = &self.s[self.window_start..];
@@ -173,6 +173,11 @@ impl Source for StrSource<'_> {
 
     fn get_pointer_loc(&mut self) -> usize {
         return self.pointer;
+    }
+
+    fn reset_pointer_loc(&mut self) {
+        self.pointer = 0;
+        self.iter = self.sub_s.chars().peekable();
     }
 }
 
