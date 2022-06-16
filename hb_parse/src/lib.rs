@@ -15,11 +15,11 @@
 //! ```
 pub mod checkers;
 pub mod error;
-pub mod parsers;
-pub mod sources;
-pub use crate::parsers::*;
+pub mod parser_funcs;
+pub mod source;
+pub use crate::parser_funcs::*;
 use error::{ParseError, ParseResult};
-use sources::Source;
+use source::Source;
 
 pub struct StrSource<'a> {
     s: &'a str,                                     // the raw source of chars

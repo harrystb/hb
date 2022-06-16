@@ -1,5 +1,5 @@
 use crate::error::{ParseError, ParseInnerError, ParseResult};
-use crate::sources::Source;
+use crate::source::Source;
 use std::fmt::Display;
 use std::ops::{Add, Mul, Rem, Sub};
 use std::str::FromStr;
@@ -17,6 +17,8 @@ pub trait CommonParserFunctions {
     fn parse_num<N: FromStr + PartialEq + PartialOrd + Add<N> + Sub<N> + Mul<N> + Rem<N>>(
         &mut self,
     ) -> ParseResult<N>;
+    /// Parses a symbol which is defined as non-alphanumeric and non-whitespace.
+    fn parse_symbol(&mut self) -> ParseResult<char>;
     /// Checks if the next char matches the provided value.
     /// If it matches then the parser is moved forward.
     fn match_char(&mut self, val: char) -> ParseResult<bool>;
@@ -34,7 +36,7 @@ pub trait CommonParserFunctions {
 impl<T: Source> CommonParserFunctions for T {
     fn parse_word(&mut self) -> ParseResult<String> {
         if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg("Parser has already been used, and has left a pointer at position {} (which should be 0)."));
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
         loop {
             match self.next() {
@@ -53,7 +55,14 @@ impl<T: Source> CommonParserFunctions for T {
                 }
                 Ok(Some((i, c))) => {
                     if !c.is_alphanumeric() {
-                        return Ok(self.extract(i)?);
+                        let r = self.read_substr(0, i)?;
+                        if c.is_whitespace() {
+                            self.consume(i + 1)?;
+                        } else {
+                            self.consume(i)?;
+                            self.reset_pointer_loc();
+                        }
+                        return Ok(r);
                     }
                 }
             }
@@ -62,7 +71,7 @@ impl<T: Source> CommonParserFunctions for T {
 
     fn parse_string(&mut self) -> ParseResult<String> {
         if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg("Parser has already been used, and has left a pointer at position {} (which should be 0)."));
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
         let mut expected_ending = ' ';
         let mut first_char = 0;
@@ -129,7 +138,7 @@ impl<T: Source> CommonParserFunctions for T {
 
     fn parse_brackets(&mut self) -> ParseResult<String> {
         if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg("Parser has already been used, and has left a pointer at position {} (which should be 0)."));
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
         let mut expected_ending = ' ';
         let mut level = 1;
@@ -198,7 +207,7 @@ impl<T: Source> CommonParserFunctions for T {
         &mut self,
     ) -> ParseResult<N> {
         if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg("Parser has already been used, and has left a pointer at position {} (which should be 0)."));
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
         loop {
             match self.next() {
@@ -245,17 +254,44 @@ impl<T: Source> CommonParserFunctions for T {
         }
     }
 
-    fn match_char(&mut self, val: char) -> ParseResult<bool> {
+    fn parse_symbol(&mut self) -> ParseResult<char> {
         if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg("Parser has already been used, and has left a pointer at position {} (which should be 0)."));
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
         match self.peek() {
             Err(e) => Err(ParseError::with_context(
                 ParseInnerError::Parse(Box::new(e)),
-                "could not parse char",
+                "could not parse symbol",
             )),
             Ok(None) => Err(ParseError::with_msg(
-                "could not parse char as there are none left in the source",
+                "could not parse symbol as there are none left in the source",
+            )),
+            Ok(Some((_, c))) => {
+                if !c.is_whitespace() && !c.is_ascii_alphanumeric() {
+                    // remove the char from the source
+                    self.consume(1)?;
+                    return Ok(c);
+                } else {
+                    return Err(ParseError::with_msg(format!(
+                        "cound not parse symbol because '{}' is not classified as a symbol",
+                        c
+                    )));
+                }
+            }
+        }
+    }
+
+    fn match_char(&mut self, val: char) -> ParseResult<bool> {
+        if self.get_pointer_loc() != 0 {
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
+        }
+        match self.peek() {
+            Err(e) => Err(ParseError::with_context(
+                ParseInnerError::Parse(Box::new(e)),
+                "could not match char",
+            )),
+            Ok(None) => Err(ParseError::with_msg(
+                "could not match char as there are none left in the source",
             )),
             Ok(Some((_, c))) => {
                 if c == val {
@@ -271,7 +307,7 @@ impl<T: Source> CommonParserFunctions for T {
 
     fn match_str(&mut self, val: &str) -> ParseResult<bool> {
         if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg("Parser has already been used, and has left a pointer at position {} (which should be 0)."));
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
         let mut match_iter = val.chars();
         let mut next_char = match match_iter.next() {
@@ -319,5 +355,37 @@ impl<T: Source> CommonParserFunctions for T {
         val: N,
     ) -> ParseResult<bool> {
         self.match_str(format!("{}", val).as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::StrSource;
+    #[test]
+    fn parser_func_tests() {
+        let mut source = StrSource::new(
+            "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 (Or something like that) 2!",
+        );
+        assert_eq!(source.parse_word().unwrap(), "This".to_owned());
+        assert_eq!(source.parse_word().unwrap(), "is".to_owned());
+        assert_eq!(source.parse_word().unwrap(), "a".to_owned());
+        assert_eq!(source.parse_word().unwrap(), "word".to_owned());
+        assert_eq!(source.parse_symbol().unwrap(), '.');
+        assert_eq!(source.parse_word().unwrap(), "And".to_owned());
+        assert_eq!(source.parse_word().unwrap(), "Some".to_owned());
+        assert_eq!(
+            source.parse_string().unwrap(),
+            "Strings, amazing!".to_owned()
+        );
+        assert_eq!(source.parse_num::<u32>().unwrap(), 1);
+        assert_eq!(source.parse_num::<i32>().unwrap(), -2);
+        assert_eq!(source.parse_num::<f32>().unwrap(), 12.3);
+        assert_eq!(
+            source.parse_brackets().unwrap(),
+            "Or something like that".to_owned()
+        );
+        assert_eq!(source.parse_num::<i64>().unwrap(), 2);
+        assert_eq!(source.parse_symbol().unwrap(), '!');
     }
 }
