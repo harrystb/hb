@@ -31,6 +31,7 @@ pub trait CommonParserFunctions {
     /// Checks the upcoming chars if they match the str value provided.
     /// If it matches then the parser is moved forward.
     fn match_str(&mut self, val: &str) -> ParseResult<bool>;
+    fn consume_whitespace(&mut self) -> ParseResult<()>;
 }
 
 impl<T: Source> CommonParserFunctions for T {
@@ -355,6 +356,41 @@ impl<T: Source> CommonParserFunctions for T {
         val: N,
     ) -> ParseResult<bool> {
         self.match_str(format!("{}", val).as_str())
+    }
+
+    fn consume_whitespace(&mut self) -> ParseResult<()> {
+        if self.get_pointer_loc() != 0 {
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
+        }
+        loop {
+            match self.peek() {
+                Err(e) => {
+                    return Err(e
+                        .make_inner()
+                        .msg("could not consume whitespace")
+                        .context(self.get_context()));
+                }
+                Ok(None) => {
+                    return Ok(());
+                }
+                Ok(Some((_, c))) => {
+                    if c.is_whitespace() {
+                        self.next().map_err(|e| {
+                            e.make_inner()
+                                .msg("could not consume whitespace")
+                                .context(self.get_context())
+                        })?;
+                    } else {
+                        self.consume(self.get_pointer_loc()).map_err(|e| {
+                            e.make_inner()
+                                .msg("could not consume whitespace")
+                                .context(self.get_context())
+                        })?;
+                        return Ok(());
+                    }
+                }
+            }
+        }
     }
 }
 

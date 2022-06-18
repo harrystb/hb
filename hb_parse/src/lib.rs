@@ -171,13 +171,30 @@ impl Source for StrSource<'_> {
         Ok(self.sub_s[start..start + n].to_string())
     }
 
-    fn get_pointer_loc(&mut self) -> usize {
+    fn get_pointer_loc(&self) -> usize {
         return self.pointer;
     }
 
     fn reset_pointer_loc(&mut self) {
         self.pointer = 0;
         self.iter = self.sub_s.chars().peekable();
+    }
+
+    fn get_context(&self) -> String {
+        let mut start_i = 0;
+        if self.pointer > 40 {
+            start_i = self.pointer - 40;
+        }
+        let mut end_i = start_i + 80;
+        if self.sub_s.len() < end_i {
+            end_i = self.sub_s.len();
+        }
+        format!(
+            "{}\n{}{}\n",
+            self.sub_s[start_i..end_i].to_owned(),
+            " ".repeat(self.pointer - start_i),
+            '^'
+        )
     }
 }
 
@@ -295,5 +312,16 @@ mod tests {
         assert_eq!(source.next().unwrap(), Some((3, 'e')));
         assert_eq!(source.next().unwrap(), Some((4, 't')));
         assert_eq!(source.get_pointer_loc(), 5);
+    }
+    #[test]
+    fn strsource_get_context_tests() {
+        let mut source = StrSource::new(
+            "This is a longer sentence, it has to be over 80 characters or my tests won't work...",
+        );
+        source.move_forward(10).ok();
+        assert_eq!(source.get_context(), "This is a longer sentence, it has to be over 80 characters or my tests won't wor\n          ^\n".to_owned());
+        source.move_forward(35).ok();
+
+        assert_eq!(source.get_context(), "is a longer sentence, it has to be over 80 characters or my tests won't work...\n                                        ^\n".to_owned());
     }
 }

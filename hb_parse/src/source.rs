@@ -22,7 +22,9 @@ pub trait Source {
     /// any pointers
     fn read_substr(&mut self, start: usize, n: usize) -> ParseResult<String>;
     /// Get the current pointer location
-    fn get_pointer_loc(&mut self) -> usize;
+    fn get_pointer_loc(&self) -> usize;
     /// Resets the pointer to the start of the window
     fn reset_pointer_loc(&mut self);
+    /// Gets up to 80 chars around the current pointer
+    fn get_context(&self) -> String;
 }
