@@ -32,6 +32,7 @@ pub trait CommonParserFunctions {
     /// If it matches then the parser is moved forward.
     fn match_str(&mut self, val: &str) -> ParseResult<bool>;
     fn consume_whitespace(&mut self) -> ParseResult<()>;
+    fn skip_whitespace(&mut self) -> ParseResult<()>;
 }
 
 impl<T: Source> CommonParserFunctions for T {
@@ -39,6 +40,12 @@ impl<T: Source> CommonParserFunctions for T {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
+        self.skip_whitespace().map_err(|e| {
+            e.make_inner()
+                .msg("could not parse word")
+                .context(self.get_context())
+        })?;
+        let start_i = self.get_pointer_loc();
         loop {
             match self.next() {
                 Err(e) => {
@@ -56,7 +63,7 @@ impl<T: Source> CommonParserFunctions for T {
                 }
                 Ok(Some((i, c))) => {
                     if !c.is_alphanumeric() {
-                        let r = self.read_substr(0, i)?;
+                        let r = self.read_substr(start_i, i - start_i)?;
                         if c.is_whitespace() {
                             self.consume(i + 1)?;
                         } else {
@@ -74,15 +81,21 @@ impl<T: Source> CommonParserFunctions for T {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
+        self.skip_whitespace().map_err(|e| {
+            e.make_inner()
+                .msg("could not parse string")
+                .context(self.get_context())
+        })?;
+        let start_i = self.get_pointer_loc();
         let mut expected_ending = ' ';
         let mut first_char = 0;
         match self.next() {
             Err(e) => {
                 self.reset_pointer_loc();
-                return Err(ParseError::with_context(
-                    ParseInnerError::Parse(Box::new(e)),
-                    "could not parse string",
-                ));
+                return Err(e
+                    .make_inner()
+                    .msg("could not parse string")
+                    .context(self.get_context()));
             }
             Ok(None) => {
                 self.reset_pointer_loc();
@@ -128,8 +141,8 @@ impl<T: Source> CommonParserFunctions for T {
                         if i == 1 {
                             return Ok(String::new());
                         }
-                        let ret = Ok(self.read_substr(1, i - 1)?);
-                        self.consume(i)?;
+                        let ret = Ok(self.read_substr(start_i + 1, i - start_i - 1)?);
+                        self.consume(i + 1)?;
                         return ret;
                     }
                 }
@@ -141,15 +154,21 @@ impl<T: Source> CommonParserFunctions for T {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
+        self.skip_whitespace().map_err(|e| {
+            e.make_inner()
+                .msg("could not parse num")
+                .context(self.get_context())
+        })?;
+        let start_i = self.get_pointer_loc();
         let mut expected_ending = ' ';
         let mut level = 1;
         match self.next() {
             Err(e) => {
                 self.reset_pointer_loc();
-                return Err(ParseError::with_context(
-                    ParseInnerError::Parse(Box::new(e)),
-                    "could not parse brackets",
-                ));
+                return Err(e
+                    .make_inner()
+                    .msg("could not parse brackets")
+                    .context(self.get_context()));
             }
             Ok(None) => {
                 self.reset_pointer_loc();
@@ -179,10 +198,10 @@ impl<T: Source> CommonParserFunctions for T {
             match self.next() {
                 Err(e) => {
                     self.reset_pointer_loc();
-                    return Err(ParseError::with_context(
-                        ParseInnerError::Parse(Box::new(e)),
-                        "could not parse brackets",
-                    ));
+                    return Err(e
+                        .make_inner()
+                        .msg("could not parse brackets")
+                        .context(self.get_context()));
                 }
                 Ok(None) => {
                     self.reset_pointer_loc();
@@ -194,8 +213,8 @@ impl<T: Source> CommonParserFunctions for T {
                     if c == expected_ending {
                         level -= 1;
                         if level == 0 {
-                            let ret = Ok(self.read_substr(1, i - 1)?);
-                            self.consume(i)?;
+                            let ret = Ok(self.read_substr(start_i + 1, i - start_i - 1)?);
+                            self.consume(i + 1)?;
                             return ret;
                         }
                     }
@@ -210,14 +229,20 @@ impl<T: Source> CommonParserFunctions for T {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
+        self.skip_whitespace().map_err(|e| {
+            e.make_inner()
+                .msg("could not parse num")
+                .context(self.get_context())
+        })?;
+        let start_i = self.get_pointer_loc();
         loop {
             match self.next() {
                 Err(e) => {
                     self.reset_pointer_loc();
-                    return Err(ParseError::with_context(
-                        ParseInnerError::Parse(Box::new(e)),
-                        "could not parse num",
-                    ));
+                    return Err(e
+                        .make_inner()
+                        .msg("could not parse num")
+                        .context(self.get_context()));
                 }
                 Ok(None) => {
                     self.reset_pointer_loc();
@@ -226,19 +251,22 @@ impl<T: Source> CommonParserFunctions for T {
                     ));
                 }
                 Ok(Some((i, c))) => {
-                    if !c.is_ascii_digit() {
-                        if i == 1 {
+                    if !c.is_ascii_digit() && c != '.' {
+                        if i == start_i {
                             // if the first char is a - then it would be a negative number
                             if c == '-' || c == '+' {
                                 continue;
                             }
                             self.reset_pointer_loc();
                             return Err(ParseError::with_msg(format!(
-                                "could not parse num as there next char '{}' is not a digit",
+                                "could not parse num as the next char '{}' is not a digit",
                                 c,
                             )));
                         }
-                        let substr = self.extract(i).unwrap();
+                        let substr = self.read_substr(start_i, i - start_i).unwrap();
+                        self.consume(i)?;
+                        self.reset_pointer_loc();
+                        println!("{:?}", self.peek());
                         match substr.parse::<N>() {
                             Err(_) => {
                                 self.reset_pointer_loc();
@@ -259,6 +287,11 @@ impl<T: Source> CommonParserFunctions for T {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
+        self.skip_whitespace().map_err(|e| {
+            e.make_inner()
+                .msg("could not parse symbol")
+                .context(self.get_context())
+        })?;
         match self.peek() {
             Err(e) => Err(ParseError::with_context(
                 ParseInnerError::Parse(Box::new(e)),
@@ -286,6 +319,11 @@ impl<T: Source> CommonParserFunctions for T {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
+        self.skip_whitespace().map_err(|e| {
+            e.make_inner()
+                .msg(format!("could not match char {}", val))
+                .context(self.get_context())
+        })?;
         match self.peek() {
             Err(e) => Err(ParseError::with_context(
                 ParseInnerError::Parse(Box::new(e)),
@@ -294,10 +332,10 @@ impl<T: Source> CommonParserFunctions for T {
             Ok(None) => Err(ParseError::with_msg(
                 "could not match char as there are none left in the source",
             )),
-            Ok(Some((_, c))) => {
+            Ok(Some((i, c))) => {
                 if c == val {
                     // remove the char from the source
-                    self.consume(1)?;
+                    self.consume(i + 1)?;
                     return Ok(true);
                 } else {
                     return Ok(false);
@@ -310,6 +348,11 @@ impl<T: Source> CommonParserFunctions for T {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
+        self.skip_whitespace().map_err(|e| {
+            e.make_inner()
+                .msg(format!("could not match str {}", val))
+                .context(self.get_context())
+        })?;
         let mut match_iter = val.chars();
         let mut next_char = match match_iter.next() {
             Some(c) => c,
@@ -342,7 +385,7 @@ impl<T: Source> CommonParserFunctions for T {
                     match match_iter.next() {
                         Some(c) => next_char = c,
                         None => {
-                            self.consume(i)?;
+                            self.consume(i + 1)?;
                             return Ok(true);
                         }
                     }
@@ -392,6 +435,36 @@ impl<T: Source> CommonParserFunctions for T {
             }
         }
     }
+
+    fn skip_whitespace(&mut self) -> ParseResult<()> {
+        if self.get_pointer_loc() != 0 {
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
+        }
+        loop {
+            match self.peek() {
+                Err(e) => {
+                    return Err(e
+                        .make_inner()
+                        .msg("could not skip whitespace")
+                        .context(self.get_context()));
+                }
+                Ok(None) => {
+                    return Ok(());
+                }
+                Ok(Some((_, c))) => {
+                    if c.is_whitespace() {
+                        self.next().map_err(|e| {
+                            e.make_inner()
+                                .msg("could not skip whitespace")
+                                .context(self.get_context())
+                        })?;
+                    } else {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -408,8 +481,9 @@ mod tests {
         assert_eq!(source.parse_word().unwrap(), "a".to_owned());
         assert_eq!(source.parse_word().unwrap(), "word".to_owned());
         assert_eq!(source.parse_symbol().unwrap(), '.');
+        source.consume_whitespace().ok();
         assert_eq!(source.parse_word().unwrap(), "And".to_owned());
-        assert_eq!(source.parse_word().unwrap(), "Some".to_owned());
+        assert_eq!(source.parse_word().unwrap(), "some".to_owned());
         assert_eq!(
             source.parse_string().unwrap(),
             "Strings, amazing!".to_owned()
