@@ -1,23 +1,82 @@
 //! This crate has some usefully parsing structs and functions which can
-//! be extended to multiple different uses.
+//! be extended to multiple different uses. Some basic parsing functions are provided,
+//! but the intention is to allow easy extension of both sources of data as well as
+//! adding additional parsin functions.
+//!
 //! # Example
 //!
 //! ```
-//! use hb_parse::HbParser;
-//! use hb_parse::sources;
-//! use hb_parse::checkers;
-//! let mut s = sources::StrSource::new("tests");
-//! let mut parser = HbParser::new(&mut s);
-//! assert_eq!(
-//!     parser.parse(Box::new(&mut checkers::CharChecker::new('e', checkers::CheckerMode::UpToAndIncluding))),
-//!     Ok("te".to_owned())
+//! use hb_parse::StrSource;
+//! use hb_parse::CommonParserFunctions;
+//! let mut source = StrSource::new(
+//!     "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 (Or something like that) 2!",
 //! );
+//! assert_eq!(source.parse_word().unwrap(), "This".to_owned());
+//! assert_eq!(source.parse_word().unwrap(), "is".to_owned());
+//! assert_eq!(source.parse_word().unwrap(), "a".to_owned());
+//! assert_eq!(source.parse_word().unwrap(), "word".to_owned());
+//! assert_eq!(source.parse_symbol().unwrap(), '.');
+//! source.consume_whitespace().ok();
+//! assert_eq!(source.parse_word().unwrap(), "And".to_owned());
+//! assert_eq!(source.parse_word().unwrap(), "some".to_owned());
+//! assert_eq!(
+//!     source.parse_string().unwrap(),
+//!     "Strings, amazing!".to_owned()
+//! );
+//! assert_eq!(source.parse_num::<u32>().unwrap(), 1);
+//! assert_eq!(source.parse_num::<i32>().unwrap(), -2);
+//! assert_eq!(source.parse_num::<f32>().unwrap(), 12.3);
+//! assert_eq!(
+//!     source.parse_brackets().unwrap(),
+//!     "Or something like that".to_owned()
+//! );
+//! assert_eq!(source.parse_num::<i64>().unwrap(), 2);
+//! assert_eq!(source.parse_symbol().unwrap(), '!');
 //! ```
-pub mod checkers;
+//!
+//! # Extending the functionality
+//! It is possible to add additional sources of data that the parsing
+//! functions can be used on by implementing the source::Source trait.
+//!
+//! It is also possible to add more parsing functions by creating new
+//! traits and implementing using generics for Source structs.
+//!
+//! # Example adding new parsing function
+//! In this example, a new parsing function is implemented for all Sources which
+//! reads the next char and returns true if it is a 'T'.
+//! ```
+//! use hb_parse::StrSource;
+//! use hb_parse::source::Source;
+//! use hb_parse::error::ParseResult;
+//! trait NewParseFuncs {
+//!    fn new_func(&mut self) -> ParseResult<bool>;
+//! }
+//! impl <T: Source> NewParseFuncs for T {
+//!    fn new_func(&mut self) -> ParseResult<bool> {
+//!    // some logic for the parsing...
+//!        match self.next() {
+//!            Err(e) => return Err(e.make_inner().msg("could not do new_func").context(self.get_context())),
+//!            Ok(None) => return Ok(false),
+//!            Ok(Some((_,c))) => {
+//!                if c == 'T' {
+//!                    return Ok(true);
+//!                } else {
+//!                    return Ok(false);
+//!                }
+//!            }
+//!        }
+//!    }
+//!}
+//! let mut source = StrSource::new(
+//!     "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 (Or something like that) 2!",
+//! );
+//!assert_eq!(source.new_func().unwrap(), true);
+//!assert_eq!(source.new_func().unwrap(), false);
+//! ```
 pub mod error;
 pub mod parser_funcs;
 pub mod source;
-pub use crate::parser_funcs::*;
+pub use self::parser_funcs::CommonParserFunctions;
 use error::{ParseError, ParseResult};
 use source::Source;
 
