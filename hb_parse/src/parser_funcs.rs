@@ -1,5 +1,6 @@
 use crate::error::{ParseError, ParseInnerError, ParseResult};
 use crate::source::Source;
+use std::any::{Any, TypeId};
 use std::fmt::Display;
 use std::ops::{Add, Mul, Rem, Sub};
 use std::str::FromStr;
@@ -14,7 +15,9 @@ pub trait CommonParserFunctions {
     /// Parses the string until the other end of the brackets is found.
     fn parse_brackets(&mut self) -> ParseResult<String>;
     /// Parses a number (eg i32, i64, u32, u64, f32, f64)
-    fn parse_num<N: FromStr + PartialEq + PartialOrd + Add<N> + Sub<N> + Mul<N> + Rem<N>>(
+    fn parse_num<
+        N: 'static + FromStr + PartialEq + PartialOrd + Add<N> + Sub<N> + Mul<N> + Rem<N>,
+    >(
         &mut self,
     ) -> ParseResult<N>;
     /// Parses a symbol which is defined as non-alphanumeric and non-whitespace.
@@ -233,7 +236,9 @@ impl<T: Source> CommonParserFunctions for T {
         }
     }
 
-    fn parse_num<N: FromStr + PartialEq + PartialOrd + Add<N> + Sub<N> + Mul<N> + Rem<N>>(
+    fn parse_num<
+        N: 'static + FromStr + PartialEq + PartialOrd + Add<N> + Sub<N> + Mul<N> + Rem<N>,
+    >(
         &mut self,
     ) -> ParseResult<N> {
         if self.get_pointer_loc() != 0 {
@@ -244,6 +249,8 @@ impl<T: Source> CommonParserFunctions for T {
                 .msg("could not parse num")
                 .context(self.get_context())
         })?;
+        let is_float =
+            TypeId::of::<N>() == TypeId::of::<f64>() || TypeId::of::<N>() == TypeId::of::<f32>();
         let start_i = self.get_pointer_loc();
         loop {
             match self.next() {
@@ -278,7 +285,10 @@ impl<T: Source> CommonParserFunctions for T {
                     }
                 }
                 Ok(Some((i, c))) => {
-                    if !c.is_ascii_digit() && c != '.' {
+                    if !c.is_ascii_digit() {
+                        if is_float && c == '.' {
+                            continue;
+                        }
                         if i == start_i {
                             // if the first char is a - then it would be a negative number
                             if c == '-' || c == '+' {
