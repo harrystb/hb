@@ -56,10 +56,16 @@ impl<T: Source> CommonParserFunctions for T {
                     ));
                 }
                 Ok(None) => {
-                    self.reset_pointer_loc();
-                    return Err(ParseError::with_msg(
-                        "could not parse word as there are none left in the source",
-                    ));
+                    if self.get_pointer_loc() == start_i {
+                        self.reset_pointer_loc();
+                        return Err(ParseError::with_msg(
+                            "could not parse word as there are none left in the source",
+                        )
+                        .err_type_source_empty());
+                    }
+                    let r = self.read_substr(start_i, self.get_pointer_loc() - start_i)?;
+                    self.consume(self.get_pointer_loc())?;
+                    return Ok(r);
                 }
                 Ok(Some((i, c))) => {
                     if !c.is_alphanumeric() {
@@ -101,7 +107,8 @@ impl<T: Source> CommonParserFunctions for T {
                 self.reset_pointer_loc();
                 return Err(ParseError::with_msg(
                     "could not parse string as there are none left in the source",
-                ));
+                )
+                .err_type_source_empty());
             }
             Ok(Some((_, c))) => {
                 if c == '\'' {
@@ -134,7 +141,8 @@ impl<T: Source> CommonParserFunctions for T {
                     self.reset_pointer_loc();
                     return Err(ParseError::with_msg(
                         "could not parse string as there are none left in the source",
-                    ));
+                    )
+                    .err_type_source_empty());
                 }
                 Ok(Some((i, c))) => {
                     if c == expected_ending {
@@ -174,7 +182,8 @@ impl<T: Source> CommonParserFunctions for T {
                 self.reset_pointer_loc();
                 return Err(ParseError::with_msg(
                     "could not parse brackets as there are none left in the source",
-                ));
+                )
+                .err_type_source_empty());
             }
             Ok(Some((_, c))) => {
                 if c == '(' {
@@ -207,7 +216,8 @@ impl<T: Source> CommonParserFunctions for T {
                     self.reset_pointer_loc();
                     return Err(ParseError::with_msg(
                         "could not parse brackets as there are none left in the source",
-                    ));
+                    )
+                    .err_type_source_empty());
                 }
                 Ok(Some((i, c))) => {
                     if c == expected_ending {
@@ -245,10 +255,27 @@ impl<T: Source> CommonParserFunctions for T {
                         .context(self.get_context()));
                 }
                 Ok(None) => {
-                    self.reset_pointer_loc();
-                    return Err(ParseError::with_msg(
-                        "could not parse num as there are none left in the source",
-                    ));
+                    if self.get_pointer_loc() == start_i {
+                        self.reset_pointer_loc();
+                        return Err(ParseError::with_msg(
+                            "could not parse num as there are none left in the source",
+                        )
+                        .err_type_source_empty());
+                    }
+                    let substr = self
+                        .read_substr(start_i, self.get_pointer_loc() - start_i)
+                        .unwrap();
+                    self.consume(self.get_pointer_loc())?;
+                    match substr.parse::<N>() {
+                        Err(_) => {
+                            self.reset_pointer_loc();
+                            return Err(ParseError::with_msg(format!(
+                                "could not parse num from str '{}'",
+                                substr
+                            )));
+                        }
+                        Ok(n) => return Ok(n),
+                    }
                 }
                 Ok(Some((i, c))) => {
                     if !c.is_ascii_digit() && c != '.' {
@@ -266,7 +293,6 @@ impl<T: Source> CommonParserFunctions for T {
                         let substr = self.read_substr(start_i, i - start_i).unwrap();
                         self.consume(i)?;
                         self.reset_pointer_loc();
-                        println!("{:?}", self.peek());
                         match substr.parse::<N>() {
                             Err(_) => {
                                 self.reset_pointer_loc();
@@ -299,7 +325,8 @@ impl<T: Source> CommonParserFunctions for T {
             )),
             Ok(None) => Err(ParseError::with_msg(
                 "could not parse symbol as there are none left in the source",
-            )),
+            )
+            .err_type_source_empty()),
             Ok(Some((_, c))) => {
                 if !c.is_whitespace() && !c.is_ascii_alphanumeric() {
                     // remove the char from the source
@@ -331,7 +358,8 @@ impl<T: Source> CommonParserFunctions for T {
             )),
             Ok(None) => Err(ParseError::with_msg(
                 "could not match char as there are none left in the source",
-            )),
+            )
+            .err_type_source_empty()),
             Ok(Some((i, c))) => {
                 if c == val {
                     // remove the char from the source
@@ -375,7 +403,8 @@ impl<T: Source> CommonParserFunctions for T {
                     self.reset_pointer_loc();
                     return Err(ParseError::with_msg(
                         "could not match str as there are none left in the source",
-                    ));
+                    )
+                    .err_type_source_empty());
                 }
                 Ok(Some((i, c))) => {
                     if c != next_char {
@@ -470,11 +499,11 @@ impl<T: Source> CommonParserFunctions for T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::StrSource;
+    use crate::StrParser;
     #[test]
     fn parser_func_tests() {
-        let mut source = StrSource::new(
-            "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 (Or something like that) 2!",
+        let mut source = StrParser::new(
+            "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 (Or something like that) 2! 1.0",
         );
         assert_eq!(source.parse_word().unwrap(), "This".to_owned());
         assert_eq!(source.parse_word().unwrap(), "is".to_owned());
@@ -497,5 +526,8 @@ mod tests {
         );
         assert_eq!(source.parse_num::<i64>().unwrap(), 2);
         assert_eq!(source.parse_symbol().unwrap(), '!');
+        assert_eq!(source.parse_num::<i64>().unwrap(), 1);
+        assert_eq!(source.parse_symbol().unwrap(), '.');
+        assert_eq!(source.parse_num::<i64>().unwrap(), 0);
     }
 }

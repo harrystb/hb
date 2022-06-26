@@ -5,6 +5,12 @@ pub enum ParseInnerError {
     IO(std::io::Error),
 }
 
+#[derive(PartialEq)]
+pub enum ParseErrorType {
+    SourceEmpty,
+    Unspecified,
+}
+
 impl std::fmt::Display for ParseInnerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
@@ -26,9 +32,10 @@ impl std::fmt::Debug for ParseInnerError {
 }
 
 pub struct ParseError {
-    msg: String,
-    context: String,
-    inner_error: Option<ParseInnerError>,
+    pub msg: String,
+    pub context: String,
+    pub inner_error: Option<ParseInnerError>,
+    pub err_type: ParseErrorType,
 }
 
 impl ParseError {
@@ -38,6 +45,7 @@ impl ParseError {
             msg: String::new(),
             context: String::new(),
             inner_error: None,
+            err_type: ParseErrorType::Unspecified,
         }
     }
 
@@ -47,6 +55,7 @@ impl ParseError {
             msg: msg.into(),
             context: String::new(),
             inner_error: None,
+            err_type: ParseErrorType::Unspecified,
         }
     }
 
@@ -56,6 +65,7 @@ impl ParseError {
             msg: msg.into(),
             context: String::new(),
             inner_error: Some(e),
+            err_type: ParseErrorType::Unspecified,
         }
     }
 
@@ -66,6 +76,7 @@ impl ParseError {
             msg: String::new(),
             context: String::new(),
             inner_error: Some(ParseInnerError::Parse(Box::new(self))),
+            err_type: ParseErrorType::Unspecified,
         }
     }
 
@@ -82,6 +93,11 @@ impl ParseError {
         self.context = context;
         self
     }
+
+    pub fn err_type_source_empty(mut self) -> ParseError {
+        self.err_type = ParseErrorType::SourceEmpty;
+        self
+    }
 }
 impl From<std::io::Error> for ParseError {
     fn from(error: std::io::Error) -> ParseError {
@@ -89,6 +105,7 @@ impl From<std::io::Error> for ParseError {
             msg: String::new(),
             context: String::new(),
             inner_error: Some(ParseInnerError::IO(error)),
+            err_type: ParseErrorType::Unspecified,
         }
     }
 }

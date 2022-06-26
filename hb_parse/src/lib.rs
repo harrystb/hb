@@ -6,9 +6,9 @@
 //! # Example
 //!
 //! ```
-//! use hb_parse::StrSource;
+//! use hb_parse::StrParser;
 //! use hb_parse::CommonParserFunctions;
-//! let mut source = StrSource::new(
+//! let mut source = StrParser::new(
 //!     "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 (Or something like that) 2!",
 //! );
 //! assert_eq!(source.parse_word().unwrap(), "This".to_owned());
@@ -45,7 +45,7 @@
 //! In this example, a new parsing function is implemented for all Sources which
 //! reads the next char and returns true if it is a 'T'.
 //! ```
-//! use hb_parse::StrSource;
+//! use hb_parse::StrParser;
 //! use hb_parse::source::Source;
 //! use hb_parse::error::ParseResult;
 //! trait NewParseFuncs {
@@ -67,7 +67,7 @@
 //!        }
 //!    }
 //!}
-//! let mut source = StrSource::new(
+//! let mut source = StrParser::new(
 //!     "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 (Or something like that) 2!",
 //! );
 //!assert_eq!(source.new_func().unwrap(), true);
@@ -80,7 +80,7 @@ pub use self::parser_funcs::CommonParserFunctions;
 use error::{ParseError, ParseResult};
 use source::Source;
 
-pub struct StrSource<'a> {
+pub struct StrParser<'a> {
     s: &'a str,                                     // the raw source of chars
     sub_s: &'a str,      // the windowed str that the iter is created from
     window_start: usize, // the current start of the window of the str
@@ -88,9 +88,9 @@ pub struct StrSource<'a> {
     iter: std::iter::Peekable<std::str::Chars<'a>>, //the iter used to extract chars
 }
 
-impl<'a> StrSource<'a> {
-    pub fn new(s: &'a str) -> StrSource<'a> {
-        StrSource {
+impl<'a> StrParser<'a> {
+    pub fn new(s: &'a str) -> StrParser<'a> {
+        StrParser {
             s: s,
             sub_s: s,
             window_start: 0,
@@ -100,7 +100,7 @@ impl<'a> StrSource<'a> {
     }
 }
 
-impl Source for StrSource<'_> {
+impl Source for StrParser<'_> {
     fn next(&mut self) -> ParseResult<Option<(usize, char)>> {
         match self.iter.next() {
             Some(c) => {
@@ -217,7 +217,7 @@ impl Source for StrSource<'_> {
                 self.sub_s.len()
             )));
         }
-        if start + n >= self.sub_s.len() {
+        if start + n > self.sub_s.len() {
             return Err(ParseError::with_msg(format!(
                 "attempted to read a substring of {} chars when only {} remain",
                 n,
@@ -262,7 +262,7 @@ mod tests {
     use super::*;
     #[test]
     fn strsource_next_tests() {
-        let mut source = StrSource::new("Something");
+        let mut source = StrParser::new("Something");
         assert_eq!(source.next().unwrap(), Some((0, 'S')));
         assert_eq!(source.next().unwrap(), Some((1, 'o')));
         assert_eq!(source.next().unwrap(), Some((2, 'm')));
@@ -276,7 +276,7 @@ mod tests {
     }
     #[test]
     fn strsource_peek_tests() {
-        let mut source = StrSource::new("Something");
+        let mut source = StrParser::new("Something");
         assert_eq!(source.peek().unwrap(), Some((0, 'S')));
         assert_eq!(source.next().unwrap(), Some((0, 'S')));
         assert_eq!(source.peek().unwrap(), Some((1, 'o')));
@@ -292,7 +292,7 @@ mod tests {
     }
     #[test]
     fn strsource_move_back_tests() {
-        let mut source = StrSource::new("Something");
+        let mut source = StrParser::new("Something");
         assert_eq!(source.next().unwrap(), Some((0, 'S')));
         assert_eq!(source.next().unwrap(), Some((1, 'o')));
         assert_eq!(source.next().unwrap(), Some((2, 'm')));
@@ -309,7 +309,7 @@ mod tests {
     }
     #[test]
     fn strsource_move_forward_tests() {
-        let mut source = StrSource::new("Something");
+        let mut source = StrParser::new("Something");
         assert_eq!(source.next().unwrap(), Some((0, 'S')));
         assert_eq!(source.next().unwrap(), Some((1, 'o')));
         assert_eq!(source.next().unwrap(), Some((2, 'm')));
@@ -322,7 +322,7 @@ mod tests {
     }
     #[test]
     fn strsource_consume_tests() {
-        let mut source = StrSource::new("Something");
+        let mut source = StrParser::new("Something");
         assert_eq!(source.next().unwrap(), Some((0, 'S')));
         assert_eq!(source.next().unwrap(), Some((1, 'o')));
         assert_eq!(source.next().unwrap(), Some((2, 'm')));
@@ -337,7 +337,7 @@ mod tests {
     }
     #[test]
     fn strsource_extract_tests() {
-        let mut source = StrSource::new("Something");
+        let mut source = StrParser::new("Something");
         assert_eq!(source.next().unwrap(), Some((0, 'S')));
         assert_eq!(source.next().unwrap(), Some((1, 'o')));
         assert_eq!(source.next().unwrap(), Some((2, 'm')));
@@ -352,7 +352,7 @@ mod tests {
     }
     #[test]
     fn strsource_read_substr_tests() {
-        let mut source = StrSource::new("Something");
+        let mut source = StrParser::new("Something");
         assert_eq!(source.next().unwrap(), Some((0, 'S')));
         assert_eq!(source.next().unwrap(), Some((1, 'o')));
         assert_eq!(source.next().unwrap(), Some((2, 'm')));
@@ -363,7 +363,7 @@ mod tests {
     }
     #[test]
     fn strsource_get_pointer_loc_tests() {
-        let mut source = StrSource::new("Something");
+        let mut source = StrParser::new("Something");
         assert_eq!(source.next().unwrap(), Some((0, 'S')));
         assert_eq!(source.next().unwrap(), Some((1, 'o')));
         assert_eq!(source.next().unwrap(), Some((2, 'm')));
@@ -374,7 +374,7 @@ mod tests {
     }
     #[test]
     fn strsource_get_context_tests() {
-        let mut source = StrSource::new(
+        let mut source = StrParser::new(
             "This is a longer sentence, it has to be over 80 characters or my tests won't work...",
         );
         source.move_forward(10).ok();
