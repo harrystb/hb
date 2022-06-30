@@ -1,11 +1,14 @@
 use crate::error::{ParseError, ParseInnerError, ParseResult};
 use crate::source::Source;
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 use std::fmt::Display;
 use std::ops::{Add, Mul, Rem, Sub};
 use std::str::FromStr;
 
 pub trait CommonParserFunctions {
+    /// Reads a word from the source from the current cursor.
+    /// A word is a all alphanumberic characters leading up to a non-aplphanumeric character.
+    fn read_word(&mut self) -> ParseResult<String>;
     /// Parses a word from the source.
     /// A word is a all alphanumberic characters leading up to a non-aplphanumeric character.
     fn parse_word(&mut self) -> ParseResult<String>;
@@ -39,10 +42,7 @@ pub trait CommonParserFunctions {
 }
 
 impl<T: Source> CommonParserFunctions for T {
-    fn parse_word(&mut self) -> ParseResult<String> {
-        if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
-        }
+    fn read_word(&mut self) -> ParseResult<String> {
         self.skip_whitespace().map_err(|e| {
             e.make_inner()
                 .msg("could not parse word")
@@ -50,7 +50,7 @@ impl<T: Source> CommonParserFunctions for T {
         })?;
         let start_i = self.get_pointer_loc();
         loop {
-            match self.next() {
+            match self.peek() {
                 Err(e) => {
                     self.reset_pointer_loc();
                     return Err(ParseError::with_context(
@@ -67,23 +67,28 @@ impl<T: Source> CommonParserFunctions for T {
                         .err_type_source_empty());
                     }
                     let r = self.read_substr(start_i, self.get_pointer_loc() - start_i)?;
-                    self.consume(self.get_pointer_loc())?;
                     return Ok(r);
                 }
                 Ok(Some((i, c))) => {
                     if !c.is_alphanumeric() {
-                        let r = self.read_substr(start_i, i - start_i)?;
-                        if c.is_whitespace() {
-                            self.consume(i + 1)?;
-                        } else {
-                            self.consume(i)?;
-                            self.reset_pointer_loc();
-                        }
-                        return Ok(r);
+                        return Ok(self.read_substr(start_i, i - start_i)?);
+                    } else {
+                        self.next()?;
                     }
                 }
             }
         }
+    }
+
+    fn parse_word(&mut self) -> ParseResult<String> {
+        if self.get_pointer_loc() != 0 {
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
+        }
+        let word = self
+            .read_word()
+            .map_err(|e| e.make_inner().msg("could not parse word"))?;
+        self.consume(self.get_pointer_loc())?;
+        Ok(word)
     }
 
     fn parse_string(&mut self) -> ParseResult<String> {
@@ -96,8 +101,7 @@ impl<T: Source> CommonParserFunctions for T {
                 .context(self.get_context())
         })?;
         let start_i = self.get_pointer_loc();
-        let mut expected_ending = ' ';
-        let mut first_char = 0;
+        let expected_ending;
         match self.next() {
             Err(e) => {
                 self.reset_pointer_loc();
@@ -171,7 +175,7 @@ impl<T: Source> CommonParserFunctions for T {
                 .context(self.get_context())
         })?;
         let start_i = self.get_pointer_loc();
-        let mut expected_ending = ' ';
+        let expected_ending;
         let mut level = 1;
         match self.next() {
             Err(e) => {
@@ -251,70 +255,200 @@ impl<T: Source> CommonParserFunctions for T {
         })?;
         let is_float =
             TypeId::of::<N>() == TypeId::of::<f64>() || TypeId::of::<N>() == TypeId::of::<f32>();
+
+        // Need to allow any of the below for float type numbers.
+        //Float  ::= Sign? ( 'inf' | 'infinity' | 'nan' | Number )
+        //Number ::= ( Digit+ |
+        //'.' Digit* |
+        //Digit+ '.' Digit* |
+        //Digit* '.' Digit+ ) Exp?
+        //Exp    ::= 'e' Sign? Digit+
+        //Sign   ::= [+-]
+        //Digit  ::= [0-9]
         let start_i = self.get_pointer_loc();
-        loop {
-            match self.next() {
-                Err(e) => {
+        // skip a +/-
+        match self.peek().map_err(|e| {
+            e.make_inner()
+                .msg("could not parse num")
+                .context(self.get_context())
+        })? {
+            None => {
+                return Err(ParseError::with_msg(
+                    "could not parse num as there are none left in the source",
+                ));
+            }
+            Some((_, c)) => {
+                if c == '-' || c == '+' {
+                    self.next()?;
+                }
+            }
+        }
+        // shortcut inf infinity or nan
+        let mut is_shortcut = false;
+        match self.peek().map_err(|e| {
+            e.make_inner()
+                .msg("could not parse num")
+                .context(self.get_context())
+        })? {
+            None => {
+                return Err(ParseError::with_msg(
+                    "could not parse num as there are none left in the source",
+                ));
+            }
+            Some((_, c)) => {
+                if is_float {
+                    if c == 'i' || c == 'I' || c == 'n' || c == 'N' {
+                        let mut word = self.read_word().map_err(|e| {
+                            e.make_inner()
+                                .msg(format!("could not parse float after {}", c))
+                        })?;
+                        word.make_ascii_uppercase();
+                        if word == "INF" || word == "INFINITY" || word == "NAN" {
+                            is_shortcut = true;
+                        }
+                    }
+                }
+            }
+        }
+        // process inf infinity and nan immediately
+        if is_shortcut {
+            let substr = self
+                .read_substr(start_i, self.get_pointer_loc() - start_i)
+                .unwrap();
+            match substr.parse::<N>() {
+                Err(_) => {
                     self.reset_pointer_loc();
-                    return Err(e
-                        .make_inner()
-                        .msg("could not parse num")
-                        .context(self.get_context()));
+                    return Err(ParseError::with_msg(format!(
+                        "could not parse num from str '{}'",
+                        substr
+                    )));
                 }
-                Ok(None) => {
-                    if self.get_pointer_loc() == start_i {
-                        self.reset_pointer_loc();
-                        return Err(ParseError::with_msg(
-                            "could not parse num as there are none left in the source",
-                        )
-                        .err_type_source_empty());
-                    }
-                    let substr = self
-                        .read_substr(start_i, self.get_pointer_loc() - start_i)
-                        .unwrap();
+                Ok(n) => {
                     self.consume(self.get_pointer_loc())?;
-                    match substr.parse::<N>() {
-                        Err(_) => {
-                            self.reset_pointer_loc();
-                            return Err(ParseError::with_msg(format!(
-                                "could not parse num from str '{}'",
-                                substr
-                            )));
-                        }
-                        Ok(n) => return Ok(n),
-                    }
+                    return Ok(n);
                 }
-                Ok(Some((i, c))) => {
+            }
+        }
+        // skip digits,
+        loop {
+            match self.peek().map_err(|e| {
+                e.make_inner()
+                    .msg("could not parse num")
+                    .context(self.get_context())
+            })? {
+                Some((_, c)) => {
+                    //already handled any non-digit cases above so can
                     if !c.is_ascii_digit() {
-                        if is_float && c == '.' {
-                            continue;
+                        break;
+                    } else {
+                        self.next()?;
+                    }
+                }
+                None => {
+                    break;
+                }
+            }
+        }
+        if is_float {
+            // if '.' then skip more digits
+            match self.peek().map_err(|e| {
+                e.make_inner()
+                    .msg("could not parse num")
+                    .context(self.get_context())
+            })? {
+                Some((_, c)) => {
+                    //already handled any non-digit cases above so can
+                    if c == '.' {
+                        self.next()?;
+                    }
+                }
+                None => (),
+            }
+            loop {
+                match self.peek().map_err(|e| {
+                    e.make_inner()
+                        .msg("could not parse num")
+                        .context(self.get_context())
+                })? {
+                    Some((_, c)) => {
+                        //already handled any non-digit cases above so can
+                        if !c.is_ascii_digit() {
+                            break;
+                        } else {
+                            self.next()?;
                         }
-                        if i == start_i {
-                            // if the first char is a - then it would be a negative number
-                            if c == '-' || c == '+' {
-                                continue;
-                            }
-                            self.reset_pointer_loc();
-                            return Err(ParseError::with_msg(format!(
-                                "could not parse num as the next char '{}' is not a digit",
-                                c,
-                            )));
+                    }
+                    None => {
+                        break;
+                    }
+                }
+            }
+            // if skip 'e' and skip sign more digits.
+            let mut has_exp = false;
+            match self.peek().map_err(|e| {
+                e.make_inner()
+                    .msg("could not parse num")
+                    .context(self.get_context())
+            })? {
+                Some((_, c)) => {
+                    //already handled any non-digit cases above so can
+                    if c == 'e' || c == 'E' {
+                        has_exp = true;
+                        self.next()?;
+                    }
+                }
+                None => (),
+            }
+            if has_exp {
+                match self.peek().map_err(|e| {
+                    e.make_inner()
+                        .msg("could not parse num")
+                        .context(self.get_context())
+                })? {
+                    Some((_, c)) => {
+                        //already handled any non-digit cases above so can
+                        if c == '+' || c == '-' {
+                            self.next()?;
                         }
-                        let substr = self.read_substr(start_i, i - start_i).unwrap();
-                        self.consume(i)?;
-                        self.reset_pointer_loc();
-                        match substr.parse::<N>() {
-                            Err(_) => {
-                                self.reset_pointer_loc();
-                                return Err(ParseError::with_msg(format!(
-                                    "could not parse num from str '{}'",
-                                    substr
-                                )));
+                    }
+                    None => (),
+                }
+                loop {
+                    match self.peek().map_err(|e| {
+                        e.make_inner()
+                            .msg("could not parse num")
+                            .context(self.get_context())
+                    })? {
+                        Some((_, c)) => {
+                            //already handled any non-digit cases above so can
+                            if !c.is_ascii_digit() {
+                                break;
+                            } else {
+                                self.next()?;
                             }
-                            Ok(n) => return Ok(n),
+                        }
+                        None => {
+                            break;
                         }
                     }
                 }
+            }
+        }
+
+        let substr = self
+            .read_substr(start_i, self.get_pointer_loc() - start_i)
+            .unwrap();
+        match substr.parse::<N>() {
+            Err(_) => {
+                self.reset_pointer_loc();
+                return Err(ParseError::with_msg(format!(
+                    "could not parse num from str '{}'",
+                    substr
+                )));
+            }
+            Ok(n) => {
+                self.consume(self.get_pointer_loc())?;
+                return Ok(n);
             }
         }
     }
@@ -476,9 +610,6 @@ impl<T: Source> CommonParserFunctions for T {
     }
 
     fn skip_whitespace(&mut self) -> ParseResult<()> {
-        if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
-        }
         loop {
             match self.peek() {
                 Err(e) => {
@@ -513,7 +644,7 @@ mod tests {
     #[test]
     fn parser_func_tests() {
         let mut source = StrParser::new(
-            "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 (Or something like that) 2! 1.0",
+            "This is a word. And some \"Strings, amazing!\" 1 -2 12.3 +inf -infinity infinity -nan (Or something like that) 2! 1.0",
         );
         assert_eq!(source.parse_word().unwrap(), "This".to_owned());
         assert_eq!(source.parse_word().unwrap(), "is".to_owned());
@@ -530,6 +661,10 @@ mod tests {
         assert_eq!(source.parse_num::<u32>().unwrap(), 1);
         assert_eq!(source.parse_num::<i32>().unwrap(), -2);
         assert_eq!(source.parse_num::<f32>().unwrap(), 12.3);
+        assert_eq!(source.parse_num::<f32>().unwrap(), f32::INFINITY);
+        assert_eq!(source.parse_num::<f32>().unwrap(), f32::NEG_INFINITY);
+        assert_eq!(source.parse_num::<f32>().unwrap(), f32::INFINITY);
+        assert!(source.parse_num::<f32>().unwrap().is_nan());
         assert_eq!(
             source.parse_brackets().unwrap(),
             "Or something like that".to_owned()

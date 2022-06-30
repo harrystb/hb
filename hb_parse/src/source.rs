@@ -1,4 +1,4 @@
-use crate::error::{ParseError, ParseResult};
+use crate::error::ParseResult;
 
 /// Interface for different implementations of sources of data for the parser.
 /// Provides various function which will allow the parsing of data without having
