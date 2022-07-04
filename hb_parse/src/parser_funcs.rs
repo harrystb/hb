@@ -25,6 +25,7 @@ pub trait CommonParserFunctions {
     ) -> ParseResult<N>;
     /// Parses a symbol which is defined as non-alphanumeric and non-whitespace.
     fn parse_symbol(&mut self) -> ParseResult<char>;
+    fn read_symbol(&mut self) -> ParseResult<char>;
     /// Checks if the next char matches the provided value.
     /// If it matches then the parser is moved forward.
     fn match_char(&mut self, val: char) -> ParseResult<bool>;
@@ -421,10 +422,7 @@ impl<T: Source> CommonParserFunctions for T {
         }
     }
 
-    fn parse_symbol(&mut self) -> ParseResult<char> {
-        if self.get_pointer_loc() != 0 {
-            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
-        }
+    fn read_symbol(&mut self) -> ParseResult<char> {
         self.skip_whitespace().map_err(|e| {
             e.make_inner()
                 .msg("could not parse symbol")
@@ -442,7 +440,7 @@ impl<T: Source> CommonParserFunctions for T {
             Ok(Some((_, c))) => {
                 if !c.is_whitespace() && !c.is_ascii_alphanumeric() {
                     // remove the char from the source
-                    self.consume(1)?;
+                    self.next()?;
                     Ok(c)
                 } else {
                     return Err(ParseError::with_msg(format!(
@@ -452,6 +450,13 @@ impl<T: Source> CommonParserFunctions for T {
                 }
             }
         }
+    }
+
+    fn parse_symbol(&mut self) -> ParseResult<char> {
+        if self.get_pointer_loc() != 0 {
+            return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
+        }
+        self.read_symbol()
     }
 
     fn match_char(&mut self, val: char) -> ParseResult<bool> {
