@@ -99,6 +99,13 @@ impl ParseError {
         self
     }
 }
+
+impl Default for ParseError {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl From<std::io::Error> for ParseError {
     fn from(error: std::io::Error) -> ParseError {
         ParseError {

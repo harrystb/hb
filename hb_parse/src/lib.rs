@@ -91,7 +91,7 @@ pub struct StrParser<'a> {
 impl<'a> StrParser<'a> {
     pub fn new(s: &'a str) -> StrParser<'a> {
         StrParser {
-            s: s,
+            s,
             sub_s: s,
             window_start: 0,
             pointer: 0,
@@ -126,7 +126,7 @@ impl Source for StrParser<'_> {
                 self.pointer, n
             )));
         }
-        self.pointer = self.pointer - n;
+        self.pointer -= n;
         self.iter = self.sub_s.chars().peekable();
         // consume so the pointer is at the next value
         if self.pointer != 0 {
@@ -144,7 +144,7 @@ impl Source for StrParser<'_> {
                 self.sub_s.len()
             )));
         }
-        self.pointer = self.pointer + n;
+        self.pointer += n;
         if n != 0 {
             // advance by n places -> nth(0) -> advances 1, n(1) advances 2...
             self.iter.nth(n - 1);
@@ -231,7 +231,7 @@ impl Source for StrParser<'_> {
     }
 
     fn get_pointer_loc(&self) -> usize {
-        return self.pointer;
+        self.pointer
     }
 
     fn reset_pointer_loc(&mut self) {

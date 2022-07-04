@@ -71,7 +71,7 @@ impl<T: Source> CommonParserFunctions for T {
                 }
                 Ok(Some((i, c))) => {
                     if !c.is_alphanumeric() {
-                        return Ok(self.read_substr(start_i, i - start_i)?);
+                        return self.read_substr(start_i, i - start_i);
                     } else {
                         self.next()?;
                     }
@@ -296,16 +296,14 @@ impl<T: Source> CommonParserFunctions for T {
                 ));
             }
             Some((_, c)) => {
-                if is_float {
-                    if c == 'i' || c == 'I' || c == 'n' || c == 'N' {
-                        let mut word = self.read_word().map_err(|e| {
-                            e.make_inner()
-                                .msg(format!("could not parse float after {}", c))
-                        })?;
-                        word.make_ascii_uppercase();
-                        if word == "INF" || word == "INFINITY" || word == "NAN" {
-                            is_shortcut = true;
-                        }
+                if is_float && (c == 'i' || c == 'I' || c == 'n' || c == 'N') {
+                    let mut word = self.read_word().map_err(|e| {
+                        e.make_inner()
+                            .msg(format!("could not parse float after {}", c))
+                    })?;
+                    word.make_ascii_uppercase();
+                    if word == "INF" || word == "INFINITY" || word == "NAN" {
+                        is_shortcut = true;
                     }
                 }
             }
@@ -330,106 +328,76 @@ impl<T: Source> CommonParserFunctions for T {
             }
         }
         // skip digits,
-        loop {
-            match self.peek().map_err(|e| {
+        while let Some((_, c)) = self.peek().map_err(|e| {
+            e.make_inner()
+                .msg("could not parse num")
+                .context(self.get_context())
+        })? {
+            //already handled any non-digit cases above so can
+            if !c.is_ascii_digit() {
+                break;
+            } else {
+                self.next()?;
+            }
+        }
+        if is_float {
+            // if '.' then skip more digits
+            if let Some((_, c)) = self.peek().map_err(|e| {
                 e.make_inner()
                     .msg("could not parse num")
                     .context(self.get_context())
             })? {
-                Some((_, c)) => {
+                //already handled any non-digit cases above so can
+                if c == '.' {
+                    self.next()?;
+                }
+            }
+            while let Some((_, c)) = self.peek().map_err(|e| {
+                e.make_inner()
+                    .msg("could not parse num")
+                    .context(self.get_context())
+            })? {
+                //already handled any non-digit cases above so can
+                if !c.is_ascii_digit() {
+                    break;
+                } else {
+                    self.next()?;
+                }
+            }
+            // if skip 'e' and skip sign more digits.
+            let mut has_exp = false;
+            if let Some((_, c)) = self.peek().map_err(|e| {
+                e.make_inner()
+                    .msg("could not parse num")
+                    .context(self.get_context())
+            })? {
+                //already handled any non-digit cases above so can
+                if c == 'e' || c == 'E' {
+                    has_exp = true;
+                    self.next()?;
+                }
+            }
+            if has_exp {
+                if let Some((_, c)) = self.peek().map_err(|e| {
+                    e.make_inner()
+                        .msg("could not parse num")
+                        .context(self.get_context())
+                })? {
+                    //already handled any non-digit cases above so can
+                    if c == '+' || c == '-' {
+                        self.next()?;
+                    }
+                }
+                while let Some((_, c)) = self.peek().map_err(|e| {
+                    e.make_inner()
+                        .msg("could not parse num")
+                        .context(self.get_context())
+                })? {
                     //already handled any non-digit cases above so can
                     if !c.is_ascii_digit() {
                         break;
                     } else {
                         self.next()?;
-                    }
-                }
-                None => {
-                    break;
-                }
-            }
-        }
-        if is_float {
-            // if '.' then skip more digits
-            match self.peek().map_err(|e| {
-                e.make_inner()
-                    .msg("could not parse num")
-                    .context(self.get_context())
-            })? {
-                Some((_, c)) => {
-                    //already handled any non-digit cases above so can
-                    if c == '.' {
-                        self.next()?;
-                    }
-                }
-                None => (),
-            }
-            loop {
-                match self.peek().map_err(|e| {
-                    e.make_inner()
-                        .msg("could not parse num")
-                        .context(self.get_context())
-                })? {
-                    Some((_, c)) => {
-                        //already handled any non-digit cases above so can
-                        if !c.is_ascii_digit() {
-                            break;
-                        } else {
-                            self.next()?;
-                        }
-                    }
-                    None => {
-                        break;
-                    }
-                }
-            }
-            // if skip 'e' and skip sign more digits.
-            let mut has_exp = false;
-            match self.peek().map_err(|e| {
-                e.make_inner()
-                    .msg("could not parse num")
-                    .context(self.get_context())
-            })? {
-                Some((_, c)) => {
-                    //already handled any non-digit cases above so can
-                    if c == 'e' || c == 'E' {
-                        has_exp = true;
-                        self.next()?;
-                    }
-                }
-                None => (),
-            }
-            if has_exp {
-                match self.peek().map_err(|e| {
-                    e.make_inner()
-                        .msg("could not parse num")
-                        .context(self.get_context())
-                })? {
-                    Some((_, c)) => {
-                        //already handled any non-digit cases above so can
-                        if c == '+' || c == '-' {
-                            self.next()?;
-                        }
-                    }
-                    None => (),
-                }
-                loop {
-                    match self.peek().map_err(|e| {
-                        e.make_inner()
-                            .msg("could not parse num")
-                            .context(self.get_context())
-                    })? {
-                        Some((_, c)) => {
-                            //already handled any non-digit cases above so can
-                            if !c.is_ascii_digit() {
-                                break;
-                            } else {
-                                self.next()?;
-                            }
-                        }
-                        None => {
-                            break;
-                        }
                     }
                 }
             }
@@ -448,7 +416,7 @@ impl<T: Source> CommonParserFunctions for T {
             }
             Ok(n) => {
                 self.consume(self.get_pointer_loc())?;
-                return Ok(n);
+                Ok(n)
             }
         }
     }
@@ -475,7 +443,7 @@ impl<T: Source> CommonParserFunctions for T {
                 if !c.is_whitespace() && !c.is_ascii_alphanumeric() {
                     // remove the char from the source
                     self.consume(1)?;
-                    return Ok(c);
+                    Ok(c)
                 } else {
                     return Err(ParseError::with_msg(format!(
                         "cound not parse symbol because '{}' is not classified as a symbol",
@@ -508,9 +476,9 @@ impl<T: Source> CommonParserFunctions for T {
                 if c == val {
                     // remove the char from the source
                     self.consume(i + 1)?;
-                    return Ok(true);
+                    Ok(true)
                 } else {
-                    return Ok(false);
+                    Ok(false)
                 }
             }
         }
