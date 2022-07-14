@@ -2,6 +2,8 @@ use crate::objects::HtmlDocument;
 use hb_parse::error::{ParseError, ParseResult};
 use hb_parse::source::Source;
 use hb_parse::CommonParserFunctions;
+use hb_parse::context;
+
 
 pub trait HtmlParserFunctions {
     fn parse_html(&mut self) -> ParseResult<HtmlDocument>;
@@ -22,24 +24,13 @@ trait HtmlParserInnerFunctions {
 }
 
 impl<S: Source> HtmlParserInnerFunctions for S {
+    #[context("could not parse doctype")]
     fn parse_doctype(&mut self) -> ParseResult<String> {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::with_msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
-        macro_rules! e_handler {
-            ($e: expr) => {
-                $e.make_inner()
-                    .msg("could not parse doctype")
-                    .context(self.get_context())
-            };
-        }
-        //let e_handler = |e: ParseError| {
-        //e.make_inner()
-        //.msg("could not parse doctype")
-        //.context(self.get_context())
-        //};
-        self.skip_whitespace().map_err(|e| e_handler!(e))?;
-        match self.next().map_err(|e| e_handler!(e))? {
+        self.skip_whitespace()?;
+        match self.next()? {
             None => {
                 return Err(ParseError::with_msg(
                     "could not parse doctype as there are no characters left",
@@ -57,7 +48,7 @@ impl<S: Source> HtmlParserInnerFunctions for S {
             }
         }
 
-        if self.read_symbol().map_err(|e| e_handler!(e))? != '!' {
+        if self.read_symbol().map_err(|e| e.make_inner().msg("didn't find a '!'").context(self.get_context()))? != '!' {
             return Err(ParseError::with_msg(
                 "could not parse doctype because the next character is not '!'",
             )
@@ -70,15 +61,15 @@ impl<S: Source> HtmlParserInnerFunctions for S {
             ))
             .context(self.get_context()));
         }
-        self.skip_whitespace().map_err(|e| e_handler!(e))?;
+        self.skip_whitespace()?;
         let start_i = self.get_pointer_loc();
-        while let Some((i, c)) = self.next().map_err(|e| e_handler!(e))? {
+        while let Some((i, c)) = self.next()? {
             if c == '>' {
                 let doctype = self
                     .read_substr(start_i, self.get_pointer_loc() - start_i - 1)
-                    .map_err(|e| e_handler!(e))?;
+                    ?;
                 self.consume(self.get_pointer_loc())
-                    .map_err(|e| e_handler!(e))?;
+                    ?;
                 return Ok(doctype);
             }
         }
@@ -98,7 +89,7 @@ mod tests {
         let mut source = StrParser::new(" <!DOCTYPE Something?>");
         assert_eq!(source.parse_doctype().unwrap(), "Something?".to_owned());
         let mut source = StrParser::new(" <DOCTYPE Something?");
-        assert_eq!(format!("{}", source.parse_doctype().err().unwrap()), "");
+        assert_eq!(format!("{}",source.parse_doctype().err().unwrap()), format!("{}",ParseError::with_msg("cound not parse symbol because 'D' is not classified as a symbol").make_inner().msg("didn't find a '!'").context(" <DOCTYPE Something?\n  ^\n".to_owned()).make_inner().msg("could not parse doctype")));
         let mut source = StrParser::new(" <!DOCTYPE Something?");
         assert_eq!(format!("{}", source.parse_doctype().err().unwrap()), "");
     }

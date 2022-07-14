@@ -5,7 +5,7 @@ pub enum ParseInnerError {
     IO(std::io::Error),
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum ParseErrorType {
     SourceEmpty,
     Unspecified,
@@ -14,8 +14,8 @@ pub enum ParseErrorType {
 impl std::fmt::Display for ParseInnerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
-            ParseInnerError::IO(e) => write!(f, "inner error:\n {}", e)?,
-            ParseInnerError::Parse(e) => write!(f, "inner error:\n {}", e)?,
+            ParseInnerError::IO(e) => write!(f, "\nBECAUSE\n {}", e)?,
+            ParseInnerError::Parse(e) => write!(f, "\nBECAUSE\n {}", e)?,
         };
         Ok(())
     }
@@ -24,8 +24,8 @@ impl std::fmt::Display for ParseInnerError {
 impl std::fmt::Debug for ParseInnerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
-            ParseInnerError::IO(e) => write!(f, "inner error:\n {}", e)?,
-            ParseInnerError::Parse(e) => write!(f, "inner error:\n {}", e)?,
+            ParseInnerError::IO(e) => write!(f, "\nBECAUSE\n {}", e)?,
+            ParseInnerError::Parse(e) => write!(f, "\nBECAUSE\n {}", e)?,
         };
         Ok(())
     }
@@ -119,17 +119,19 @@ impl From<std::io::Error> for ParseError {
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        let context_str = if self.context.len() > 0{format!("\n{}", self.context)} else {String::new()};
         match &self.inner_error {
-            Some(e) => write!(f, "Parse Error: {}\n{}\n{}", self.msg, self.context, e),
-            None => write!(f, "Parse Error: {}\n{}", self.msg, self.context),
+            Some(e) => write!(f, "ParseError: {}{}{}", self.msg, context_str,e),
+            None => write!(f, "Parse Error: {}{}", self.msg, context_str),
         }
     }
 }
 impl std::fmt::Debug for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        let context_str = if self.context.len() > 0{format!("\n{}", self.context)} else {String::new()};
         match &self.inner_error {
-            Some(e) => write!(f, "Parse Error: {}\n{}\n{}", self.msg, self.context, e),
-            None => write!(f, "Parse Error: {}\n{}", self.msg, self.context),
+            Some(e) => write!(f, "ParseError: {}{}{}", self.msg, context_str,e),
+            None => write!(f, "Parse Error: {}{}", self.msg, context_str),
         }
     }
 }

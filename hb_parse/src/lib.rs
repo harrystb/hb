@@ -79,6 +79,7 @@ pub mod source;
 pub use self::parser_funcs::CommonParserFunctions;
 use error::{ParseError, ParseResult};
 use source::Source;
+pub use hb_macros::context;
 
 pub struct StrParser<'a> {
     s: &'a str,                                     // the raw source of chars

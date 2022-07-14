@@ -191,8 +191,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "hb_macros"
+version = "0.1.0"
+dependencies = [
+ "hb_parse",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "hb_parse"
 version = "0.1.0"
+dependencies = [
+ "hb_macros",
+]
 
 [[package]]
 name = "hb_webrecipe"
