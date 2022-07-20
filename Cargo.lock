@@ -195,6 +195,7 @@ name = "hb_macros"
 version = "0.1.0"
 dependencies = [
  "hb_parse",
+ "proc-macro2",
  "quote",
  "syn",
 ]
