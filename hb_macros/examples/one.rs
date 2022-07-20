@@ -14,6 +14,12 @@ impl eh {
         Err(ParseError::with_msg("inner"))
     }
 
+    #[context2("Better?")]
+    pub fn ah() -> ParseResult<()> {
+        Err(ParseError::from(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "This is an io error")))
+    }
+
+
     pub fn b() -> ParseResult<()> {
         Err(ParseError::with_msg("inner"))
     }
@@ -21,5 +27,6 @@ impl eh {
 
 fn main() {
     println!("{}", eh::eh().err().unwrap());
-    println!("{}", eh::hm().err().unwrap())
+    println!("{}", eh::hm().err().unwrap());
+    println!("{}", eh::ah().err().unwrap());
 }

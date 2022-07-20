@@ -50,7 +50,7 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
 pub fn context2(args: TokenStream, input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let mut input = parse_macro_input!(input as ItemFn);
-    input.attrs.retain(|x| x.path.segments.last().map_or_else(|| true, |a| a.ident != Ident::new("context2", Span::call_site())));
+    //input.attrs.retain(|x| x.path.segments.last().map_or_else(|| true, |a| a.ident != Ident::new("context2", Span::call_site())));
     let block = input.block;
     let message = parse_macro_input!(args as LitStr);
     input.block = parse_quote!{

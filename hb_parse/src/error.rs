@@ -14,7 +14,7 @@ pub enum ParseErrorType {
 impl std::fmt::Display for ParseInnerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
-            ParseInnerError::IO(e) => write!(f, "\nBECAUSE\n {}", e)?,
+            ParseInnerError::IO(e) => write!(f, "\nio::Error\n {}", e)?,
             ParseInnerError::Parse(e) => write!(f, "\nBECAUSE\n {}", e)?,
         };
         Ok(())
@@ -24,7 +24,7 @@ impl std::fmt::Display for ParseInnerError {
 impl std::fmt::Debug for ParseInnerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
-            ParseInnerError::IO(e) => write!(f, "\nBECAUSE\n {}", e)?,
+            ParseInnerError::IO(e) => write!(f, "\nio::Error\n {}", e)?,
             ParseInnerError::Parse(e) => write!(f, "\nBECAUSE\n {}", e)?,
         };
         Ok(())
@@ -109,7 +109,7 @@ impl Default for ParseError {
 impl From<std::io::Error> for ParseError {
     fn from(error: std::io::Error) -> ParseError {
         ParseError {
-            msg: String::new(),
+            msg: "encountered an IO Error".to_string(),
             context: String::new(),
             inner_error: Some(ParseInnerError::IO(error)),
             err_type: ParseErrorType::Unspecified,
