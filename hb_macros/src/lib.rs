@@ -62,3 +62,23 @@ pub fn context2(args: TokenStream, input: TokenStream) -> TokenStream {
     // Hand the output tokens back to the compiler
     TokenStream::from(quote!{#input})
 }
+
+#[proc_macro_attribute]
+pub fn context3(args: TokenStream, input: TokenStream) -> TokenStream {
+    // Parse the input tokens into a syntax tree
+    let mut input = parse_macro_input!(input as ItemFn);
+    //input.attrs.retain(|x| x.path.segments.last().map_or_else(|| true, |a| a.ident != Ident::new("context2", Span::call_site())));
+    let block = input.block;
+    let message = parse_macro_input!(args as LitStr);
+    input.block = parse_quote!{
+        {
+            match {#block} {
+                Err(e) => Err(Into::<ParseError>::into(e).make_inner().msg(#message)),
+                Ok(o) => Ok(o)
+            }
+        }
+    };
+
+    // Hand the output tokens back to the compiler
+    TokenStream::from(quote!{#input})
+}
