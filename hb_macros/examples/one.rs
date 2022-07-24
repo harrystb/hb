@@ -1,43 +1,54 @@
-use hb_macros::{context, context2, context3};
+use hb_macros::{context};
 use hb_parse::error::{ParseResult, ParseError};
-struct eh;
+struct Example;
 
-impl eh {
-    #[context("Something")]
-    pub fn eh() -> ParseResult<()> {
-        eh::b()?;
+impl Example {
+    #[context("Basic Parse Error")]
+    pub fn basic_parseerror() -> ParseResult<()> {
+        Example::ParseError()
+    }
+    
+    //#[context("Returned Parse Error")]
+    //pub fn returned_parseerror() -> ParseResult<()> {
+        //return Example::ParseError()
+    //}
+
+    #[context("Question Mark Parse Error")]
+    pub fn question_parseerror() -> ParseResult<()> {
+        Example::ParseError()?;
         Ok(())
     }
 
-    #[context2("Better?")]
-    pub fn hm() -> ParseResult<()> {
-        Err(ParseError::with_msg("inner"))
+    #[context("Basic IO Error")]
+    pub fn basic_ioerror() -> ParseResult<()> {
+        Example::IOError()
+    }
+    
+    //#[context("Returned IO Error")]
+    //pub fn returned_ioerror() -> ParseResult<()> {
+        //return Example::IOError();
+    //}
+
+    #[context("Question Mark IO Error")]
+    pub fn question_ioerror() -> ParseResult<()> {
+        Example::IOError()?;
+        Ok(())
     }
 
-    #[context2("Better?")]
-    pub fn ah() -> ParseResult<()> {
-        Err(ParseError::from(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "This is an io error")))
+    pub fn IOError() -> std::io::Result<()> {
+        Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Example IO Error."))
     }
 
-    #[context3("maybe?")]
-    pub fn uh() -> ParseResult<()> {
-        Err(ParseError::from(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "This is an io error")))
-    }
-
-    #[context3("yes?")]
-    pub fn ultimate() -> ParseResult<()> {
-        Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "This is an io error"))
-    }
-
-    pub fn b() -> ParseResult<()> {
-        Err(ParseError::with_msg("inner"))
+    pub fn ParseError() -> ParseResult<()> {
+        Err(ParseError::with_msg("Example ParseError."))
     }
 }
 
 fn main() {
-    println!("{}", eh::eh().err().unwrap());
-    println!("{}", eh::hm().err().unwrap());
-    println!("{}", eh::ah().err().unwrap());
-    println!("{}", eh::uh().err().unwrap());
-    println!("{}", eh::ultimate().err().unwrap());
+    println!("{:?}", Example::basic_parseerror());
+    //println!("{}", Example::returned_parseerror());
+    println!("{:?}", Example::question_parseerror());
+    println!("{:?}", Example::basic_ioerror());
+    //println!("{}", Example::returned_ioerror());
+    println!("{:?}", Example::question_ioerror());
 }

@@ -18,66 +18,43 @@ impl Msg {
 impl Fold for Msg {
     fn fold_expr(&mut self, e: Expr) -> Expr {
         match e {
-            Expr::Try(etry) => {
-                let ex = etry.expr;
-                let m = &self.m;
-                let q = etry.question_token;
-                parse_quote!({
-                    #ex.map_err(|er| er.make_inner().msg(#m) )#q
-                })
+            Expr::Return(mut rexpr) => {
+                match rexpr.expr {
+                    Some(ex) => {
+                        let m = &self.m;
+                        rexpr.expr = Some(parse_quote!({
+                            #ex.map_err(|er| Into::<ParseError>::into(er).make_inner().msg(#m) )
+                        }));
+                    },
+                    None => (),
+                }
+                Expr::Return(rexpr)
             },
             _ => fold::fold_expr(self, e),
         }
     }
-    // stmt -> Local...
 }
-
 
 #[proc_macro_attribute]
 pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
-    let input = parse_macro_input!(input as ItemFn);
-
-    // Build the output, possibly using quasi-quotation
+    let mut input = parse_macro_input!(input as ItemFn);
+    //input.attrs.retain(|x| x.path.segments.last().map_or_else(|| true, |a| a.ident != Ident::new("context2", Span::call_site())));
+    let block = input.block.clone();
+    let rettype = input.sig.output.clone();
     let mut message = Msg::new(parse_macro_input!(args as LitStr));
-
-    let output = message.fold_item_fn(input);
-    // Hand the output tokens back to the compiler
-    TokenStream::from(quote!(#output))
-}
-
-#[proc_macro_attribute]
-pub fn context2(args: TokenStream, input: TokenStream) -> TokenStream {
-    // Parse the input tokens into a syntax tree
-    let mut input = parse_macro_input!(input as ItemFn);
-    //input.attrs.retain(|x| x.path.segments.last().map_or_else(|| true, |a| a.ident != Ident::new("context2", Span::call_site())));
-    let block = input.block;
-    let message = parse_macro_input!(args as LitStr);
+    let msg = message.m.clone();
     input.block = parse_quote!{
         {
-            (||{#block})().map_err(|er| er.make_inner().msg(#message))
-        }
-    };
-
-    // Hand the output tokens back to the compiler
-    TokenStream::from(quote!{#input})
-}
-
-#[proc_macro_attribute]
-pub fn context3(args: TokenStream, input: TokenStream) -> TokenStream {
-    // Parse the input tokens into a syntax tree
-    let mut input = parse_macro_input!(input as ItemFn);
-    //input.attrs.retain(|x| x.path.segments.last().map_or_else(|| true, |a| a.ident != Ident::new("context2", Span::call_site())));
-    let block = input.block;
-    let message = parse_macro_input!(args as LitStr);
-    input.block = parse_quote!{
-        {
-            match {#block} {
-                Err(e) => Err(Into::<ParseError>::into(e).make_inner().msg(#message)),
-                Ok(o) => Ok(o)
+            let ret = match {#block} {
+                Err(e) => return Err(Into::<ParseError>::into(e).make_inner().msg(#msg)),
+                Ok(o) => return Ok(o),
             }
         }
     };
+    // Build the output, possibly using quasi-quotation
+
+    //let output = message.fold_item_fn(input);
 
     // Hand the output tokens back to the compiler
     TokenStream::from(quote!{#input})
