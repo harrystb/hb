@@ -1,5 +1,5 @@
 use hb_macros::{context};
-use hb_parse::error::{ParseResult, ParseError};
+use hb_parse::error::{ParseResult, ParseError, ConvertInto};
 struct Example;
 
 impl Example {
@@ -8,10 +8,10 @@ impl Example {
         Example::ParseError()
     }
     
-    //#[context("Returned Parse Error")]
-    //pub fn returned_parseerror() -> ParseResult<()> {
-        //return Example::ParseError()
-    //}
+    #[context("Returned Parse Error")]
+    pub fn returned_parseerror() -> ParseResult<()> {
+        return Example::ParseError()
+    }
 
     #[context("Question Mark Parse Error")]
     pub fn question_parseerror() -> ParseResult<()> {
@@ -21,13 +21,13 @@ impl Example {
 
     #[context("Basic IO Error")]
     pub fn basic_ioerror() -> ParseResult<()> {
-        Example::IOError()
+        Ok(Example::IOError()?)
     }
     
-    //#[context("Returned IO Error")]
-    //pub fn returned_ioerror() -> ParseResult<()> {
-        //return Example::IOError();
-    //}
+    #[context("Returned IO Error")]
+    pub fn returned_ioerror() -> ParseResult<()> {
+        return Example::IOError();
+    }
 
     #[context("Question Mark IO Error")]
     pub fn question_ioerror() -> ParseResult<()> {
@@ -39,16 +39,22 @@ impl Example {
         Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Example IO Error."))
     }
 
+    pub fn testingconvert() -> ParseResult<()> {
+        ConvertInto::<ParseResult<()>>::convert(Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Example IO Error.")))?;
+        Ok(())
+    }
+
     pub fn ParseError() -> ParseResult<()> {
         Err(ParseError::with_msg("Example ParseError."))
     }
 }
 
 fn main() {
-    println!("{:?}", Example::basic_parseerror());
-    //println!("{}", Example::returned_parseerror());
-    println!("{:?}", Example::question_parseerror());
-    println!("{:?}", Example::basic_ioerror());
-    //println!("{}", Example::returned_ioerror());
-    println!("{:?}", Example::question_ioerror());
+    println!("{}", Example::basic_parseerror().err().unwrap());
+    println!("{}", Example::returned_parseerror().err().unwrap());
+    println!("{:?}", Example::question_parseerror().err().unwrap());
+    println!("{:?}", Example::basic_ioerror().err().unwrap());
+    println!("{}", Example::returned_ioerror().err().unwrap());
+    println!("{:?}", Example::question_ioerror().err().unwrap());
+    println!("{:?}", Example::testingconvert().err().unwrap());
 }

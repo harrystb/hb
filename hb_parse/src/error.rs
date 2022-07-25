@@ -117,6 +117,31 @@ impl From<std::io::Error> for ParseError {
     }
 }
 
+pub trait ConvertFrom<T> {
+    fn convert_from(_: T) -> Self;
+}
+
+impl <Val, EFrom, ETo: From<EFrom>> ConvertFrom<Result<Val, EFrom>> for Result<Val, ETo> {
+    fn convert_from(f: Result<Val, EFrom>) -> Self {
+        match f {
+            Err(error) => Err(error.into()),
+            Ok(o) => Ok(o),
+        }
+    }
+}
+
+pub trait ConvertInto<T> {
+    fn convert(self) -> T;
+}
+
+impl <Val, EFrom, ETo> ConvertInto<Result<Val, ETo>> for Result<Val, EFrom> 
+where Result<Val, ETo>: ConvertFrom<Result<Val,EFrom>> {
+    fn convert(self) -> Result<Val, ETo> {
+        Result::<Val, ETo>::convert_from(self)
+    }
+}
+
+
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let context_str = if self.context.len() > 0{format!("\n{}", self.context)} else {String::new()};
