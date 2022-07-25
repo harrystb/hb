@@ -1,5 +1,5 @@
 use hb_macros::{context};
-use hb_parse::error::{ParseResult, ParseError, ConvertInto};
+use hb_parse::error::{ParseResult, ParseError};
 struct Example;
 
 impl Example {
@@ -40,7 +40,7 @@ impl Example {
     }
 
     pub fn testingconvert() -> ParseResult<()> {
-        ConvertInto::<ParseResult<()>>::convert(Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Example IO Error.")))?;
+        hb_parse::error::ConvertInto::<ParseResult<()>>::convert(Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Example IO Error.")))?;
         Ok(())
     }
 

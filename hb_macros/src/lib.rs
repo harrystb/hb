@@ -24,7 +24,7 @@ impl Fold for Msg {
                     Some(ex) => {
                         let m = &self.m;
                         let rettype = &self.rettype;
-                        rexpr.expr = Some(parse_quote!(ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m))));
+                        rexpr.expr = Some(parse_quote!(hb_parse::error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m))));
                     },
                     None => (),
                 }
@@ -34,7 +34,7 @@ impl Fold for Msg {
                 let ex = texpr.expr;
                 let m = &self.m;
                 let rettype = &self.rettype;
-                texpr.expr = parse_quote!(ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m)));
+                texpr.expr = parse_quote!(hb_parse::error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m)));
                 Expr::Try(texpr)
             },
             _ => fold::fold_expr(self, e),
