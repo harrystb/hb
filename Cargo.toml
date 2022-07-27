@@ -10,4 +10,5 @@ members = [
     "hb_parse",
     "hb_webrecipe",
     "hb_macros",
+    "hb_error",
 ]
