@@ -61,7 +61,7 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
         return TokenStream::from(quote! {#input});
     }
     // Handle Return and ? by folding the ItemFn syntax tree with the ContextMsg object
-    let mut output = message.fold_item_fn(input.clone());
+    let mut output = message.fold_item_fn(input);
     // Wrap the context of the function to grab the fall through Result then add the context
     // onto the any errors with map_err
     let block = output.block.clone();
@@ -129,7 +129,7 @@ pub fn convert_error(_args: TokenStream, input: TokenStream) -> TokenStream {
         return TokenStream::from(quote! {#input});
     }
     // Handle Return and ? by folding the ItemFn syntax tree with the ContextMsg object
-    let output = message.fold_item_fn(input.clone());
+    let output = message.fold_item_fn(input);
     // Convert the SyntaxTree back into a TokenTree
     TokenStream::from(quote! {#output})
 }

@@ -187,7 +187,6 @@ name = "hb_error"
 version = "0.1.0"
 dependencies = [
  "hb_macros",
- "hb_parse",
 ]
 
 [[package]]

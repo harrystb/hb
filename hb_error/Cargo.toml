@@ -7,6 +7,3 @@ edition = "2021"
 
 [dependencies]
 hb_macros = {path = "../hb_macros"}
-
-[dev-dependencies]
-hb_parse = {path = "../hb_parse"}
