@@ -16,6 +16,23 @@ impl ContextMsg {
     }
 }
 
+// The Fold trait is used to inject the error handling into the the source code.
+// The Fold will change this function...
+// #[context("context message")]
+// fn basic_exampleerror() -> Result<(), ExampleError> {
+//     if io_error()? {
+//         return example_error().map_err(|e| e.msg("msgs are great"));
+//     }
+//     example_error()
+// }
+//
+// into...
+// fn basic_exampleerror() -> Result<(), ExampleError> {
+//     if hb_error::ConvertInto::Result<(), ExampleError>::convert(io_error()).map_err(|er| er.make_inner().msg("context message")? {
+//         return hb_error::ConvertInto::Result<(), ExampleError>::convert(example_error().map_err(|e| e.msg("msgs are great"))).map_err(|er| er.make_inner().msg("context message");
+//     }
+//     example_error()
+// }
 impl Fold for ContextMsg {
     fn fold_expr(&mut self, e: Expr) -> Expr {
         match e {
@@ -46,6 +63,28 @@ impl Fold for ContextMsg {
 
 /// Converts Errors returned by the function into the correct type for the
 /// function as well adding a context message provided.
+/// This macro will change the following function...
+/// #[context("context message")]
+/// fn basic_exampleerror() -> Result<(), ExampleError> {
+///     if io_error()? {
+///         return example_error().map_err(|e| e.msg("msgs are great"));
+///     }
+///     example_error()
+/// }
+///
+/// into...
+/// fn basic_exampleerror() -> Result<(), ExampleError> {
+///     #[allow(unreachable_code)]
+///     let ret: Result<(), ExampleError> = {
+///            #[warn(unreachable_code)]
+///         if hb_error::ConvertInto::Result<(), ExampleError>::convert(io_error()).map_err(|er| er.make_inner().msg("context message")? {
+///             return hb_error::ConvertInto::Result<(), ExampleError>::convert(example_error().map_err(|e| e.msg("msgs are great"))).map_err(|er| er.make_inner().msg("context message");
+///         }
+///         example_error()
+///     };
+///     #[allow(unreachable_code)]
+///     ret.map_err(|er| e.make_inner().msg("context message")
+/// }
 #[proc_macro_attribute]
 pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
     // convert the input TokenStream into a ItemFn syntax object
@@ -87,6 +126,23 @@ struct Converter {
     rettype: Box<Type>,
 }
 
+// The Fold trait is used to inject the error handling into the the source code.
+// The Fold will change this function...
+// #[convert_error]
+// fn basic_exampleerror() -> Result<(), ExampleError> {
+//     if io_error()? {
+//         return example_error().map_err(|e| e.msg("msgs are great"));
+//     }
+//     example_error()
+// }
+//
+// into...
+// fn basic_exampleerror() -> Result<(), ExampleError> {
+//     if hb_error::ConvertInto::Result<(), ExampleError>::convert(io_error())? {
+//         return hb_error::ConvertInto::Result<(), ExampleError>::convert(example_error().map_err(|e| e.msg("msgs are great")));
+//     }
+//     example_error()
+// }
 impl Fold for Converter {
     fn fold_expr(&mut self, e: Expr) -> Expr {
         match e {
@@ -114,6 +170,28 @@ impl Fold for Converter {
 
 /// Converts Errors returned by the function into the correct type for the
 /// function as well adding a context message provided.
+/// This macro will change the following function...
+/// #[convert_error]
+/// fn basic_exampleerror() -> Result<(), ExampleError> {
+///     if io_error()? {
+///         return example_error().map_err(|e| e.msg("msgs are great"));
+///     }
+///     example_error()
+/// }
+///
+/// into...
+/// fn basic_exampleerror() -> Result<(), ExampleError> {
+///     #[allow(unreachable_code)]
+///     let ret: Result<(), ExampleError> = {
+///            #[warn(unreachable_code)]
+///         if hb_error::ConvertInto::Result<(), ExampleError>::convert(io_error())? {
+///             return hb_error::ConvertInto::Result<(), ExampleError>::convert(example_error());
+///         }
+///         example_error()
+///     };
+///     #[allow(unreachable_code)]
+///     ret
+/// }
 #[proc_macro_attribute]
 pub fn convert_error(_args: TokenStream, input: TokenStream) -> TokenStream {
     // convert the input TokenStream into a ItemFn syntax object
