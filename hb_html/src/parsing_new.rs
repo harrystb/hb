@@ -1,9 +1,8 @@
 use crate::objects::HtmlDocument;
+use hb_error::context;
 use hb_parse::error::{ParseError, ParseResult};
 use hb_parse::source::Source;
 use hb_parse::CommonParserFunctions;
-use hb_parse::context;
-
 
 pub trait HtmlParserFunctions {
     fn parse_html(&mut self) -> ParseResult<HtmlDocument>;
@@ -48,7 +47,12 @@ impl<S: Source> HtmlParserInnerFunctions for S {
             }
         }
 
-        if self.read_symbol().map_err(|e| e.make_inner().msg("didn't find a '!'").context(self.get_context()))? != '!' {
+        if self.read_symbol().map_err(|e| {
+            e.make_inner()
+                .msg("didn't find a '!'")
+                .context(self.get_context())
+        })? != '!'
+        {
             return Err(ParseError::with_msg(
                 "could not parse doctype because the next character is not '!'",
             )
@@ -65,11 +69,8 @@ impl<S: Source> HtmlParserInnerFunctions for S {
         let start_i = self.get_pointer_loc();
         while let Some((i, c)) = self.next()? {
             if c == '>' {
-                let doctype = self
-                    .read_substr(start_i, self.get_pointer_loc() - start_i - 1)
-                    ?;
-                self.consume(self.get_pointer_loc())
-                    ?;
+                let doctype = self.read_substr(start_i, self.get_pointer_loc() - start_i - 1)?;
+                self.consume(self.get_pointer_loc())?;
                 return Ok(doctype);
             }
         }
@@ -89,7 +90,20 @@ mod tests {
         let mut source = StrParser::new(" <!DOCTYPE Something?>");
         assert_eq!(source.parse_doctype().unwrap(), "Something?".to_owned());
         let mut source = StrParser::new(" <DOCTYPE Something?");
-        assert_eq!(format!("{}",source.parse_doctype().err().unwrap()), format!("{}",ParseError::with_msg("cound not parse symbol because 'D' is not classified as a symbol").make_inner().msg("didn't find a '!'").context(" <DOCTYPE Something?\n  ^\n".to_owned()).make_inner().msg("could not parse doctype")));
+        assert_eq!(
+            format!("{}", source.parse_doctype().err().unwrap()),
+            format!(
+                "{}",
+                ParseError::with_msg(
+                    "cound not parse symbol because 'D' is not classified as a symbol"
+                )
+                .make_inner()
+                .msg("didn't find a '!'")
+                .context(" <DOCTYPE Something?\n  ^\n".to_owned())
+                .make_inner()
+                .msg("could not parse doctype")
+            )
+        );
         let mut source = StrParser::new(" <!DOCTYPE Something?");
         assert_eq!(format!("{}", source.parse_doctype().err().unwrap()), "");
     }

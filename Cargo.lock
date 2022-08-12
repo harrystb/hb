@@ -193,6 +193,7 @@ dependencies = [
 name = "hb_html"
 version = "0.1.0"
 dependencies = [
+ "hb_error",
  "hb_parse",
  "reqwest",
 ]

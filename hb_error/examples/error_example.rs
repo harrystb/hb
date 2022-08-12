@@ -4,6 +4,9 @@ struct ExampleError {
     inner_errors: Vec<String>,
 }
 
+#[hberror]
+struct AnotherExampleError {}
+
 impl ExampleError {
     pub fn new() -> ExampleError {
         ExampleError {

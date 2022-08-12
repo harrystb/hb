@@ -1,7 +1,14 @@
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::quote;
 use syn::fold::{self, Fold};
-use syn::{parse_macro_input, parse_quote, Expr, ItemFn, LitStr, ReturnType, Type};
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
+use syn::Expr::Match;
+use syn::{
+    parse_macro_input, parse_quote, Attribute, Expr, ExprMatch, Field, Fields, FieldsNamed,
+    FieldsUnnamed, Ident, ItemEnum, ItemFn, ItemStruct, LitStr, ReturnType, Token, Type, Variant,
+};
 
 /// Struct to handle the folding of the ItemFn.
 /// Holds the return type and message for use by the fold functions.
@@ -210,4 +217,167 @@ pub fn convert_error(_args: TokenStream, input: TokenStream) -> TokenStream {
     let output = message.fold_item_fn(input);
     // Convert the SyntaxTree back into a TokenTree
     TokenStream::from(quote! {#output})
+}
+
+#[proc_macro_attribute]
+pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ItemStruct);
+    let mut output_struct = input.clone();
+    let ident = input.ident;
+    let identSource = Ident::new(&format!("{}Source", ident), Span::call_site());
+    let temp_itemfn: ItemFn = parse_quote!(
+        #[Source]
+        fn dummy() -> () {}
+    );
+    let source_attr = temp_itemfn.attrs.iter().next().unwrap().clone();
+    let temp_itemfn: ItemFn = parse_quote!(
+        #[hberror]
+        fn dummy() -> () {}
+    );
+    let hberror_attr = temp_itemfn.attrs.iter().next().unwrap().clone();
+    let vis = input.vis;
+    let mut attrs: Vec<Attribute> = input
+        .attrs
+        .iter()
+        .filter(|a| **a != hberror_attr)
+        .map(|a| a.clone())
+        .collect();
+    let mut enum_variants = syn::punctuated::Punctuated::<Variant, Comma>::new();
+    let mut has_source_enum = false;
+    match &input.fields {
+        Fields::Named(namedfields) => {
+            namedfields
+                .named
+                .iter()
+                .filter(|f| f.attrs.contains(&source_attr))
+                .map(|f| {
+                    let ty = &f.ty;
+                    enum_variants.push(Variant {
+                        ident: f.ident.clone().unwrap(),
+                        attrs: vec![],
+                        fields: Fields::Unnamed(parse_quote!((#ty))),
+                        discriminant: None,
+                    });
+                    has_source_enum = true;
+                    ()
+                })
+                .collect::<Vec<()>>();
+        }
+        Fields::Unnamed(_) => (),
+        Fields::Unit => (),
+    };
+    let mut enum_dislay_match = ExprMatch {
+        attrs: vec![],
+        match_token: Default::default(),
+        expr: Box::new(parse_quote!(self)),
+        brace_token: Default::default(),
+        arms: vec![],
+    };
+    let mut variant_iter = enum_variants.iter();
+    while let Some(variant) = variant_iter.next() {
+        let ty = variant.ident.clone();
+        enum_dislay_match
+            .arms
+            .push(parse_quote!(ty(e) => write!(f, "source error #ty...{}", e)))
+    }
+    /*    output_struct.fields = match output_struct.fields {
+            Fields::Named(namedfields) => {
+                let mut output_fields_punctuated = Punctuated::<Field, Token![,]>::new();
+                namedfields
+                    .named
+                    .iter()
+                    .map(|val| {
+                        if !val.attrs.contains(&source_attr) {
+                            let mut out_val = val.clone();
+                            out_val.attrs = out_val
+                                .attrs
+                                .iter()
+                                .filter(|a| **a != source_attr)
+                                .map(|a| a.clone())
+                                .collect();
+                            output_fields_punctuated.push(out_val)
+                        }
+                    })
+                    .collect::<Vec<()>>();
+                output_fields_punctuated.push(Field {
+                    attrs: vec![],
+                    vis: vis.clone(),
+                    ident: parse_quote!(msg),
+                    colon_token: Some(Token![:](Span::call_site())),
+                    ty: parse_quote!(String),
+                });
+                output_fields_punctuated.push(Field {
+                    attrs: vec![],
+                    vis: vis.clone(),
+                    ident: parse_quote!(inner_msgs),
+                    colon_token: Some(Token![:](Span::call_site())),
+                    ty: parse_quote!(Vec<String>),
+                });
+                if has_source_enum {
+                    output_fields_punctuated.push(Field {
+                        attrs: vec![],
+                        vis: vis.clone(),
+                        ident: parse_quote!(source),
+                        colon_token: Some(Token![:](Span::call_site())),
+                        ty: parse_quote!(#identSource),
+                    });
+                }
+
+                Fields::Named(parse_quote!({ output_fields_punctuated }))
+            }
+            Fields::Unit => {
+                let mut output_fields_punctuated = Punctuated::<Field, Token![,]>::new();
+                output_fields_punctuated.push(Field {
+                    attrs: vec![],
+                    vis: vis.clone(),
+                    ident: parse_quote!(msg),
+                    colon_token: Some(Token![:](Span::mixed_site())),
+                    ty: parse_quote!(String),
+                });
+                output_fields_punctuated.push(Field {
+                    attrs: vec![],
+                    vis: vis.clone(),
+                    ident: parse_quote!(inner_msgs),
+                    colon_token: Some(Token![:](Span::mixed_site())),
+                    ty: parse_quote!(Vec<String>),
+                });
+                if has_source_enum {
+                    output_fields_punctuated.push(Field {
+                        attrs: vec![],
+                        vis: vis.clone(),
+                        ident: parse_quote!(source),
+                        colon_token: Some(Token![:](Span::mixed_site())),
+                        ty: parse_quote!(#identSource),
+                    });
+                }
+                Fields::Named(parse_quote!({ output_fields_punctuated }))
+            }
+            Fields::Unnamed(_) => {
+                panic!("hberror macro does not work with structs with unnamed fields")
+            }
+        };
+    */
+    let output = match has_source_enum {
+        true => {
+            quote!(
+                #output_struct
+
+                #vis enum #identSource {
+                    #enum_variants
+                }
+
+                impl Display for #identSource {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                        #enum_dislay_match
+                    }
+                }
+            )
+        }
+        false => {
+            quote!(
+                #output_struct
+            )
+        }
+    };
+    output.into()
 }
