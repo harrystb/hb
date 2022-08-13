@@ -230,6 +230,16 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
         fn dummy() -> () {}
     );
     let source_attr = temp_itemfn.attrs.iter().next().unwrap().clone();
+    let temp_struct: ItemStruct = parse_quote!(
+        #[hberror]
+        struct dummy {
+            dummy: dummy,
+        }
+    );
+    let colon_item = match &temp_struct.fields {
+        Fields::Named(namedfields) => namedfields.named.iter().next().unwrap().colon_token.clone(),
+        _ => panic!("should not happen..."),
+    };
     let temp_itemfn: ItemFn = parse_quote!(
         #[hberror]
         fn dummy() -> () {}
@@ -243,6 +253,7 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
         .map(|a| a.clone())
         .collect();
     let mut enum_variants = syn::punctuated::Punctuated::<Variant, Comma>::new();
+    let mut non_source_fields = syn::punctuated::Punctuated::<Field, Comma>::new();
     let mut has_source_enum = false;
     match &input.fields {
         Fields::Named(namedfields) => {
@@ -250,7 +261,7 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                 .named
                 .iter()
                 .filter(|f| f.attrs.contains(&source_attr))
-                .map(|f| {
+                .for_each(|f| {
                     let ty = &f.ty;
                     enum_variants.push(Variant {
                         ident: f.ident.clone().unwrap(),
@@ -260,115 +271,78 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                     });
                     has_source_enum = true;
                     ()
-                })
-                .collect::<Vec<()>>();
+                });
+            namedfields
+                .named
+                .iter()
+                .filter(|f| !f.attrs.contains(&source_attr))
+                .for_each(|f| non_source_fields.push(f.clone()));
         }
         Fields::Unnamed(_) => (),
         Fields::Unit => (),
     };
-    let mut enum_dislay_match = ExprMatch {
+    let mut enum_display_match = ExprMatch {
         attrs: vec![],
         match_token: Default::default(),
         expr: Box::new(parse_quote!(self)),
         brace_token: Default::default(),
         arms: vec![],
     };
-    let mut variant_iter = enum_variants.iter();
-    while let Some(variant) = variant_iter.next() {
+    for variant in &enum_variants {
         let ty = variant.ident.clone();
-        enum_dislay_match
+        enum_display_match
             .arms
-            .push(parse_quote!(ty(e) => write!(f, "source error #ty...{}", e)))
+            .push(parse_quote!(ty(e) => write!(f, "source error #ty...{}", e)));
     }
-    /*    output_struct.fields = match output_struct.fields {
-            Fields::Named(namedfields) => {
-                let mut output_fields_punctuated = Punctuated::<Field, Token![,]>::new();
-                namedfields
-                    .named
-                    .iter()
-                    .map(|val| {
-                        if !val.attrs.contains(&source_attr) {
-                            let mut out_val = val.clone();
-                            out_val.attrs = out_val
-                                .attrs
-                                .iter()
-                                .filter(|a| **a != source_attr)
-                                .map(|a| a.clone())
-                                .collect();
-                            output_fields_punctuated.push(out_val)
-                        }
-                    })
-                    .collect::<Vec<()>>();
-                output_fields_punctuated.push(Field {
-                    attrs: vec![],
-                    vis: vis.clone(),
-                    ident: parse_quote!(msg),
-                    colon_token: Some(Token![:](Span::call_site())),
-                    ty: parse_quote!(String),
-                });
-                output_fields_punctuated.push(Field {
-                    attrs: vec![],
-                    vis: vis.clone(),
-                    ident: parse_quote!(inner_msgs),
-                    colon_token: Some(Token![:](Span::call_site())),
-                    ty: parse_quote!(Vec<String>),
-                });
-                if has_source_enum {
-                    output_fields_punctuated.push(Field {
-                        attrs: vec![],
-                        vis: vis.clone(),
-                        ident: parse_quote!(source),
-                        colon_token: Some(Token![:](Span::call_site())),
-                        ty: parse_quote!(#identSource),
-                    });
-                }
-
-                Fields::Named(parse_quote!({ output_fields_punctuated }))
+    if has_source_enum {
+        enum_variants.push(Variant {
+            ident: parse_quote!(None),
+            attrs: vec![],
+            fields: Fields::Unit,
+            discriminant: None,
+        });
+        enum_display_match.arms.push(parse_quote!(None => OK(())))
+    }
+    let mut final_fields = Fields::Named(match has_source_enum {
+        true => parse_quote! {
+            {
+                msg: String,
+                inner_msgs: Vec<String>,
+                source: #identSource,
             }
-            Fields::Unit => {
-                let mut output_fields_punctuated = Punctuated::<Field, Token![,]>::new();
-                output_fields_punctuated.push(Field {
-                    attrs: vec![],
-                    vis: vis.clone(),
-                    ident: parse_quote!(msg),
-                    colon_token: Some(Token![:](Span::mixed_site())),
-                    ty: parse_quote!(String),
-                });
-                output_fields_punctuated.push(Field {
-                    attrs: vec![],
-                    vis: vis.clone(),
-                    ident: parse_quote!(inner_msgs),
-                    colon_token: Some(Token![:](Span::mixed_site())),
-                    ty: parse_quote!(Vec<String>),
-                });
-                if has_source_enum {
-                    output_fields_punctuated.push(Field {
-                        attrs: vec![],
-                        vis: vis.clone(),
-                        ident: parse_quote!(source),
-                        colon_token: Some(Token![:](Span::mixed_site())),
-                        ty: parse_quote!(#identSource),
-                    });
-                }
-                Fields::Named(parse_quote!({ output_fields_punctuated }))
+        },
+        false => parse_quote! {
+            {
+                msg: String,
+                inner_msgs: Vec<String>,
             }
-            Fields::Unnamed(_) => {
-                panic!("hberror macro does not work with structs with unnamed fields")
-            }
-        };
-    */
+        },
+    });
+    match &mut final_fields {
+        Fields::Named(n) => non_source_fields
+            .iter()
+            .for_each(|f| n.named.push(f.clone())),
+        _ => (),
+    };
+    output_struct.fields = final_fields;
     let output = match has_source_enum {
         true => {
             quote!(
                 #output_struct
 
+                impl std::fmt::Display for #ident {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                        write!(f, "{}\n...because... {}{}", self.msg, self.inner_msgs.join("\n...because... "), self.source)
+                    }
+                }
+
                 #vis enum #identSource {
                     #enum_variants
                 }
 
-                impl Display for #identSource {
+                impl std::fmt::Display for #identSource {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-                        #enum_dislay_match
+                        #enum_display_match
                     }
                 }
             )
@@ -376,6 +350,33 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
         false => {
             quote!(
                 #output_struct
+
+                impl #ident {
+                    #vis fn new() -> #ident {
+                        #ident {
+                            msg: String::new(),
+                            inner_msgs: vec![],
+                        }
+                    }
+
+                    #vis fn make_inner(mut self) -> #ident {
+                        self.inner_msgs.push(self.msg);
+                        self.msg = String::new();
+                        self
+                    }
+
+                    #vis fn msg<T: Into<String>>(mut self, msg: T) -> #ident {
+                        self.msg = msg.into();
+                        self
+                    }
+                }
+
+                impl std::fmt::Display for #ident {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                        write!(f, "{}\n...because... {}", self.msg, self.inner_msgs.join("\n...because... "))
+                    }
+                }
+
             )
         }
     };
