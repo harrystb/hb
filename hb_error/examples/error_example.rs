@@ -183,4 +183,13 @@ fn main() {
         "Basic Example 5: Adding converting and adding context with an io:Error\n{}\n",
         basic5_exampleerror().err().unwrap()
     );
+
+    let exerror = AnotherExampleError::new()
+        .msg("first msg")
+        .make_inner()
+        .msg("second msg");
+    println!(
+        "Another Exmaple 1: Trying out the macro to fill in the contents of an error type\n{}\n",
+        exerror
+    );
 }
