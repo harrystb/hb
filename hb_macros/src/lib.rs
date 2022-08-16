@@ -1,13 +1,14 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::quote;
+use quote::{quote, TokenStreamExt};
 use syn::fold::{self, Fold};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::Expr::Match;
 use syn::{
     parse_macro_input, parse_quote, Attribute, Expr, ExprMatch, Field, Fields, FieldsNamed,
-    FieldsUnnamed, Ident, ItemEnum, ItemFn, ItemStruct, LitStr, ReturnType, Token, Type, Variant,
+    FieldsUnnamed, Ident, ImplItem, Item, ItemEnum, ItemFn, ItemStruct, LitStr, ReturnType, Token,
+    Type, Variant,
 };
 
 /// Struct to handle the folding of the ItemFn.
@@ -221,39 +222,29 @@ pub fn convert_error(_args: TokenStream, input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
+    // parse the input as an ItemStruct, it should panic if anything other than a struct is annotated with this macro
     let input = parse_macro_input!(input as ItemStruct);
+
+    // create a copy which we can edit easily
     let mut output_struct = input.clone();
+
+    // get some details from the struct
+    // Struct Name
     let ident = input.ident;
+    // Create the source enum's name from the structs name
     let identSource = Ident::new(&format!("{}Source", ident), Span::call_site());
+    // visibility of the struct - eg pub
+    let vis = input.vis;
+
+    // Calculate some constants for use with matching
     let temp_itemfn: ItemFn = parse_quote!(
         #[Source]
         fn dummy() -> () {}
     );
     let source_attr = temp_itemfn.attrs.iter().next().unwrap().clone();
-    let temp_struct: ItemStruct = parse_quote!(
-        #[hberror]
-        struct dummy {
-            dummy: dummy,
-        }
-    );
-    let colon_item = match &temp_struct.fields {
-        Fields::Named(namedfields) => namedfields.named.iter().next().unwrap().colon_token.clone(),
-        _ => panic!("should not happen..."),
-    };
-    let temp_itemfn: ItemFn = parse_quote!(
-        #[hberror]
-        fn dummy() -> () {}
-    );
-    let hberror_attr = temp_itemfn.attrs.iter().next().unwrap().clone();
-    let vis = input.vis;
-    let mut attrs: Vec<Attribute> = input
-        .attrs
-        .iter()
-        .filter(|a| **a != hberror_attr)
-        .map(|a| a.clone())
-        .collect();
     let mut enum_variants = syn::punctuated::Punctuated::<Variant, Comma>::new();
     let mut non_source_fields = syn::punctuated::Punctuated::<Field, Comma>::new();
+    let mut source_from_impl_items: Vec<Item> = vec![];
     let mut has_source_enum = false;
     match &input.fields {
         Fields::Named(namedfields) => {
@@ -263,6 +254,7 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                 .filter(|f| f.attrs.contains(&source_attr))
                 .for_each(|f| {
                     let ty = &f.ty;
+                    let enum_ident = f.ident.clone().unwrap();
                     enum_variants.push(Variant {
                         ident: f.ident.clone().unwrap(),
                         attrs: vec![],
@@ -270,7 +262,11 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                         discriminant: None,
                     });
                     has_source_enum = true;
-                    ()
+                    source_from_impl_items.push(parse_quote!(impl From<#ty> for #ident {
+                        fn from(e: #ty) -> #ident {
+                            #ident::new().source(#identSource::#enum_ident(e))
+                        }
+                    }));
                 });
             namedfields
                 .named
@@ -327,8 +323,23 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
     output_struct.fields = final_fields;
     let output = match has_source_enum {
         true => {
-            quote!(
+            let mut out = quote!(
                 #output_struct
+
+                impl #ident {
+                    #vis fn new() -> #ident {
+                        #ident {
+                            msg: String::new(),
+                            inner_msgs: vec![],
+                            source: #identSource::None
+                        }
+                    }
+
+                    #vis fn source(mut self, s: #identSource) -> #ident {
+                        self.source = s;
+                        self
+                    }
+                }
 
                 impl std::fmt::Display for #ident {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
@@ -345,10 +356,12 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                         #enum_display_match
                     }
                 }
-            )
+            );
+            out.append_all(source_from_impl_items);
+            out
         }
         false => {
-            quote!(
+            let mut out = quote!(
                 #output_struct
 
                 impl #ident {
@@ -358,14 +371,16 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                             inner_msgs: vec![],
                         }
                     }
+                }
 
-                    #vis fn make_inner(mut self) -> #ident {
+                impl ErrorContext for #ident {
+                    fn make_inner(mut self) -> #ident {
                         self.inner_msgs.push(self.msg);
                         self.msg = String::new();
                         self
                     }
 
-                    #vis fn msg<T: Into<String>>(mut self, msg: T) -> #ident {
+                    fn msg<T: Into<String>>(mut self, msg: T) -> #ident {
                         self.msg = msg.into();
                         self
                     }
@@ -376,8 +391,8 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                         write!(f, "{}\n...because... {}", self.msg, self.inner_msgs.join("\n...because... "))
                     }
                 }
-
-            )
+            );
+            out
         }
     };
     output.into()
