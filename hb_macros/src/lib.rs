@@ -288,7 +288,7 @@ pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
         let ty = variant.ident.clone();
         enum_display_match
             .arms
-            .push(parse_quote!(#identSource::#ty(e) => write!(f, "\nsource error {}...{}",stringify!(#ty), e)));
+            .push(parse_quote!(#identSource::#ty(e) => write!(f, "\n...source error {}...{}",stringify!(#ty), e)));
     }
     if has_source_enum {
         enum_variants.push(Variant {
@@ -329,12 +329,12 @@ pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
             if has_source_enum {
                 msg_args.push(parse_quote!("{}{}{}"));
                 msg_args.push(parse_quote!(self.msg));
-                msg_args.push(parse_quote!(self.inner_msgs.join("\n...becuase...")));
+                msg_args.push(parse_quote!(self.inner_msgs.join("\n...because...")));
                 msg_args.push(parse_quote!(self.source));
             } else {
                 msg_args.push(parse_quote!("{}{}"));
                 msg_args.push(parse_quote!(self.msg));
-                msg_args.push(parse_quote!(self.inner_msgs.join("\n...becuase...")));
+                msg_args.push(parse_quote!(self.inner_msgs.join("\n...because...")));
             }
         }
         Ok(litstr) => {
@@ -366,6 +366,10 @@ pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
                     .push(syn::parse_str::<Expr>(&content).expect(
                         format!("cannot convert {} into an expression.", content).as_str(),
                     ));
+            }
+            if has_source_enum {
+                msg_args.push(parse_quote!(self.source));
+                out_str.push_str("{}")
             }
             msg_args.insert(1, parse_quote!(#out_str));
         }

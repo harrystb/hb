@@ -230,7 +230,7 @@ fn basic5_exampleerror() -> Result<(), ExampleError> {
 //                None => Ok(()),
 //        }
 //    }
-#[hberror("{self.msg}{self.inner_msgs.join(\"ugh\")}")] //TODO inner msgs not printing?
+#[hberror("{self.msg}{self.inner_msgs.join(\"\n...due to...\")}")]
 struct AnotherExampleError {
     #[Source]
     IOError: std::io::Error,
@@ -239,6 +239,11 @@ struct AnotherExampleError {
 #[context("hberror generated example from io error")]
 fn more_exampleerror() -> Result<(), AnotherExampleError> {
     return io_error();
+}
+
+#[context("adding a second layer of context")]
+fn more_exampleerror2() -> Result<(), AnotherExampleError> {
+    return more_exampleerror();
 }
 
 fn main() {
@@ -264,7 +269,11 @@ fn main() {
     );
 
     println!(
-        "Another Exmaple 1: Trying out the macro to fill in the contents of an error type\n{}\n",
+        "Another Example 1: Trying out the macro to fill in the contents of an error type\n{}\n",
         more_exampleerror().err().unwrap()
+    );
+    println!(
+        "Another Example 2: Adding a layer of context on top\n{}\n",
+        more_exampleerror2().err().unwrap()
     );
 }

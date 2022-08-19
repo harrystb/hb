@@ -1,3 +1,11 @@
+use hb_error::*;
+
+#[hberror]
+pub struct SourceError {
+    #[Source]
+    IOError: std::io::Error,
+}
+
 pub type ParseResult<T> = Result<T, ParseError>;
 
 pub enum ParseInnerError {
