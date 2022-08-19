@@ -4,9 +4,6 @@ struct ExampleError {
     inner_errors: Vec<String>,
 }
 
-#[hberror]
-struct AnotherExampleError {}
-
 impl ExampleError {
     pub fn new() -> ExampleError {
         ExampleError {
@@ -162,6 +159,88 @@ fn basic5_exampleerror() -> Result<(), ExampleError> {
     return io_error();
 }
 
+// The macro hberror will generate the boilerplate of Errors that are used in this style.
+// The #[Source] attribute tells the hberror macro to implement a source struct (called
+// AnotherExampleErrorSource in the example below) which also means that the From<> traits will be
+// implemented
+//
+// The below Struct will be transformed into:
+//    struct AnotherExampleError {
+//        msg: String,
+//        inner_msgs: Vec<String>,
+//        source: AnotherExampleErrorSource,
+//    }
+//
+//    impl AnotherExampleError {
+//        fn new() -> AnotherExampleError {
+//            AnotherExampleError {
+//                msg: String::new(),
+//                inner_msgs: vec![],
+//                source: AnotherExampleErrorSource::None,
+//            }
+//        }
+//
+//        fn source(mut self, s: AnotherExampleErrorSource) -> AnotherExampleError {
+//            self.source = s;
+//            self
+//        }
+//    }
+//
+//    impl ErrorContext for AnotherExampleError {
+//        fn make_inner(mut self) -> AnotherExampleError {
+//            self.inner_msgs.push(self.msg);
+//            self.msg = String::new();
+//            self
+//        }
+//
+//        fn msg<T: Into<String>>(mut self, msg: T) -> AnotherExampleError {
+//            self.msg = msg.into();
+//            self
+//        }
+//    }
+//
+//    impl std::fmt::Display for AnotherExampleError {
+//        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+//            write!(f, "{}\n...because... {}{}", self.msg, self.inner_msgs.join("\n...because... "), self.source)
+//        }
+//    }
+//
+//    impl std::fmt::Debug for AnotherExampleError {
+//        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+//            write!(f, "{}\n...because... {}{}", self.msg, self.inner_msgs.join("\n...because... "), self.source)
+//        }
+//    }
+//
+//    enum AnotherExampleErrorSource {
+//        IOError(std::io::Error),
+//        None,
+//    }
+//
+//    impl std::fmt::Display for AnotherExampleErrorSource {
+//        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+//            match self {
+//                AnotherExampleErrorSource::IOError(e) => write!(f, "\nsource error {}...{}",stringify!(IOError), e),
+//                None => Ok(()),
+//        }
+//    }
+//
+//    impl std::fmt::Debug for AnotherExampleErrorSource {
+//        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+//                AnotherExampleErrorSource::IOError(e) => write!(f, "\nsource error {}...{}",stringify!(IOError), e),
+//                None => Ok(()),
+//        }
+//    }
+#[hberror("{self.msg}{self.inner_msgs.join(\"ugh\")}")] //TODO inner msgs not printing?
+struct AnotherExampleError {
+    #[Source]
+    IOError: std::io::Error,
+}
+
+#[context("hberror generated example from io error")]
+fn more_exampleerror() -> Result<(), AnotherExampleError> {
+    return io_error();
+}
+
 fn main() {
     println!(
         "Basic Example 1: Adding context to a fall through error\n{}\n",
@@ -184,12 +263,8 @@ fn main() {
         basic5_exampleerror().err().unwrap()
     );
 
-    let exerror = AnotherExampleError::new()
-        .msg("first msg")
-        .make_inner()
-        .msg("second msg");
     println!(
         "Another Exmaple 1: Trying out the macro to fill in the contents of an error type\n{}\n",
-        exerror
+        more_exampleerror().err().unwrap()
     );
 }

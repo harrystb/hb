@@ -2,13 +2,14 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{quote, TokenStreamExt};
 use syn::fold::{self, Fold};
-use syn::punctuated::Punctuated;
+use syn::parse::{Parse, Parser};
+use syn::punctuated::Pair::Punctuated;
 use syn::token::Comma;
 use syn::Expr::Match;
 use syn::{
-    parse_macro_input, parse_quote, Attribute, Expr, ExprMatch, Field, Fields, FieldsNamed,
-    FieldsUnnamed, Ident, ImplItem, Item, ItemEnum, ItemFn, ItemStruct, LitStr, ReturnType, Token,
-    Type, Variant,
+    parse_macro_input, parse_quote, Attribute, Expr, ExprBlock, ExprMatch, Field, Fields,
+    FieldsNamed, FieldsUnnamed, Ident, ImplItem, Item, ItemEnum, ItemFn, ItemStruct, LitStr,
+    ReturnType, Token, Type, Variant,
 };
 
 /// Struct to handle the folding of the ItemFn.
@@ -221,10 +222,9 @@ pub fn convert_error(_args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
     // parse the input as an ItemStruct, it should panic if anything other than a struct is annotated with this macro
     let input = parse_macro_input!(input as ItemStruct);
-
     // create a copy which we can edit easily
     let mut output_struct = input.clone();
 
@@ -288,7 +288,7 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
         let ty = variant.ident.clone();
         enum_display_match
             .arms
-            .push(parse_quote!(ty(e) => write!(f, "source error #ty...{}", e)));
+            .push(parse_quote!(#identSource::#ty(e) => write!(f, "\nsource error {}...{}",stringify!(#ty), e)));
     }
     if has_source_enum {
         enum_variants.push(Variant {
@@ -297,7 +297,9 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
             fields: Fields::Unit,
             discriminant: None,
         });
-        enum_display_match.arms.push(parse_quote!(None => OK(())))
+        enum_display_match
+            .arms
+            .push(parse_quote!(#identSource::None => Ok(())))
     }
     let mut final_fields = Fields::Named(match has_source_enum {
         true => parse_quote! {
@@ -320,6 +322,55 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
             .for_each(|f| n.named.push(f.clone())),
         _ => (),
     };
+    let mut msg_args = syn::punctuated::Punctuated::<Expr, Comma>::new();
+    msg_args.push(parse_quote!(f));
+    match syn::parse::<LitStr>(args) {
+        Err(e) => {
+            if has_source_enum {
+                msg_args.push(parse_quote!("{}{}{}"));
+                msg_args.push(parse_quote!(self.msg));
+                msg_args.push(parse_quote!(self.inner_msgs.join("\n...becuase...")));
+                msg_args.push(parse_quote!(self.source));
+            } else {
+                msg_args.push(parse_quote!("{}{}"));
+                msg_args.push(parse_quote!(self.msg));
+                msg_args.push(parse_quote!(self.inner_msgs.join("\n...becuase...")));
+            }
+        }
+        Ok(litstr) => {
+            let str = litstr.value();
+            let mut brace_contents: Vec<String> = vec![];
+            let mut in_brace = false;
+            let mut buf = String::new();
+            let mut out_str = String::new();
+            for c in str.chars() {
+                if c == '{' {
+                    in_brace = true;
+                    out_str.push(c);
+                } else if c == '}' {
+                    if buf.len() > 0 {
+                        brace_contents.push(buf);
+                        buf = String::new();
+                    }
+                    in_brace = false;
+                    out_str.push(c);
+                } else if in_brace {
+                    buf.push(c);
+                } else {
+                    out_str.push(c);
+                }
+            }
+
+            for content in brace_contents {
+                msg_args
+                    .push(syn::parse_str::<Expr>(&content).expect(
+                        format!("cannot convert {} into an expression.", content).as_str(),
+                    ));
+            }
+            msg_args.insert(1, parse_quote!(#out_str));
+        }
+    }
+
     output_struct.fields = final_fields;
     let output = match has_source_enum {
         true => {
@@ -331,7 +382,7 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                         #ident {
                             msg: String::new(),
                             inner_msgs: vec![],
-                            source: #identSource::None
+                            source: #identSource::None,
                         }
                     }
 
@@ -341,9 +392,28 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 }
 
+                impl ErrorContext for #ident {
+                    fn make_inner(mut self) -> #ident {
+                        self.inner_msgs.push(self.msg);
+                        self.msg = String::new();
+                        self
+                    }
+
+                    fn msg<T: Into<String>>(mut self, msg: T) -> #ident {
+                        self.msg = msg.into();
+                        self
+                    }
+                }
+
                 impl std::fmt::Display for #ident {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-                        write!(f, "{}\n...because... {}{}", self.msg, self.inner_msgs.join("\n...because... "), self.source)
+                        write!(#msg_args)
+                    }
+                }
+
+                impl std::fmt::Debug for #ident {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                        write!(#msg_args)
                     }
                 }
 
@@ -352,6 +422,12 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
                 }
 
                 impl std::fmt::Display for #identSource {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                        #enum_display_match
+                    }
+                }
+
+                impl std::fmt::Debug for #identSource {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
                         #enum_display_match
                     }
@@ -388,7 +464,13 @@ pub fn hberror(_args: TokenStream, input: TokenStream) -> TokenStream {
 
                 impl std::fmt::Display for #ident {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-                        write!(f, "{}\n...because... {}", self.msg, self.inner_msgs.join("\n...because... "))
+                        write!(#msg_args)
+                    }
+                }
+
+                impl std::fmt::Debug for #ident {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                        write!(#msg_args)
                     }
                 }
             );
