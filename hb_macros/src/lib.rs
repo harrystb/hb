@@ -217,6 +217,205 @@ pub fn convert_error(_args: TokenStream, input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {#output})
 }
 
+/// This macro is used to generate all of the boiler plate code for error types so that they all
+/// have the same format.
+/// # Overview
+/// This macro is applied to structs like this one.
+/// ```
+/// #[hberror]
+/// struct ExampleError {
+/// }
+/// ```
+/// This macro will modify the struct to add in the msg and inner_msgs fields as well as doing the impls for new, ErrorContext, Display and Debug.
+/// This will generate the following code:
+///
+/// ```
+///
+/// pub struct ExampleError {
+///     msg: String,
+///     inner_msgs: Vec<String>,
+/// }
+///
+/// impl ExampleError {
+///     pub fn new() -> ExampleError {
+///         ExampleError {
+///             msg: default::Default(),
+///             inner_msgs: default::Default(),
+///         }
+///     }
+/// }
+///
+/// impl ErrorContext for ExampleError {
+///     fn make_inner(mut self) -> ExampleError {
+///         self.inner_msgs.push(self.msg);
+///         self.msg = String::new();
+///         self
+///     }
+///
+///     fn msg<T: Into<String>>(mut self, msg: T) -> ExampleError {
+///         self.msg = msg.into();
+///         self
+///     }
+/// }
+///
+/// impl std::fmt::Display for ExampleError {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+///         write!(f,"{}{}", self.msg, self.inner_msgs.join("\n...because..."))
+///     }
+/// }
+///
+/// impl std::fmt::Debug for ExampleError {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+///         write!(f,"{}{}", self.msg, self.inner_msgs.join("\n...because..."))
+///     }
+/// }
+/// ```
+/// # Custom fields and messages
+/// This macro also has the capability of dealing with custom fields and custom messages.
+/// Using the Default attribute on these custom fields will tell the macro to use the val provided
+/// in the new function rather than default::Default().
+///
+/// ```
+/// #[hberror("{self.custom_field}:{self.msg}{self.inner_msgs.join(\"\n...due to...\")}")]
+/// struct ExampleError {
+///     #[Default(10)]
+///     custom_field: i32,
+/// }
+/// ```
+/// This becomes
+/// ```
+/// pub struct ExampleError {
+///     msg: String,
+///     inner_msgs: Vec<String>,
+///     custom_field: i32
+/// }
+///
+/// impl ExampleError {
+///     pub fn new() -> ExampleError {
+///         ExampleError {
+///             msg: default::Default(),
+///             inner_msgs: default::Default(),
+///             custom_field: 10
+///         }
+///     }
+/// }
+///
+/// impl ErrorContext for ExampleError {
+///     fn make_inner(mut self) -> ExampleError {
+///         self.inner_msgs.push(self.msg);
+///         self.msg = String::new();
+///         self
+///     }
+///
+///     fn msg<T: Into<String>>(mut self, msg: T) -> ExampleError {
+///         self.msg = msg.into();
+///         self
+///     }
+/// }
+///
+/// impl std::fmt::Display for ExampleError {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+///         write!(f,"{}:{}{}", self.custom_field, self.msg, self.inner_msgs.join("\n...due to..."))
+///     }
+/// }
+///
+/// impl std::fmt::Debug for ExampleError {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+///         write!(f,"{}:{}{}", self.custom_field, self.msg, self.inner_msgs.join("\n...due to..."))
+///     }
+/// }
+/// ```
+/// # Easy Conversion from other errors
+/// You can also define errors that you want to convert from and store as a source variable which
+/// will be printed after message. The Source attribute tell the macro which fields to process as
+/// the source. A enum will be created using the identity of the sturct with Source at the end
+/// (eg ExampleErrorSource). This enum will have variants for each field marked with a source
+/// attribute as well as a None value. The variants for the sources are created using the field
+/// identity as the enum variant identity and contains the error type provided.
+/// ```
+/// #[hberror]
+/// struct ExampleError {
+///     #[Source]
+///     IOError: std::io::Error,
+/// }
+/// ```
+/// This becomes:
+/// ```
+/// use std::default;
+/// pub struct ExampleError {
+///     msg: String,
+///     inner_msgs: Vec<String>,
+///     source: ExampleErrorSource,
+/// }
+///
+/// impl ExampleError {
+///     pub fn new() -> ExampleError {
+///         ExampleError {
+///             msg: default::Default(),
+///             inner_msgs: default::Default(),
+///             source: default::Default(),
+///         }
+///     }
+///
+///     pub fn source(mut self, s: ExampleErrorSource) -> ExampleError {
+///         self.source = s;
+///         self
+///     }
+/// }
+///
+/// impl ErrorContext for ExampleError {
+///     fn make_inner(mut self) -> ExampleError {
+///         self.inner_msgs.push(self.msg);
+///         self.msg = String::new();
+///         self
+///     }
+///
+///     fn msg<T: Into<String>>(mut self, msg: T) -> ExampleError {
+///         self.msg = msg.into();
+///         self
+///     }
+/// }
+///
+/// impl std::fmt::Display for ExampleError {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+///         write!(f,"{}{}{}", self.msg, self.inner_msgs.join("\n...due to..."), self.source)
+///     }
+/// }
+///
+/// impl std::fmt::Debug for ExampleError {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+///         write!(f,"{}{}{}", self.msg, self.inner_msgs.join("\n...due to..."), self.source)
+///     }
+/// }
+///
+/// pub enum ExampleErrorSource {
+///     None,
+///     IOError(std::io::Error),
+/// }
+///
+/// impl std::default::Default for ExampleErrorSource {
+///     fn default() -> Self { ExampleErrorSource::None }
+/// }
+///
+/// impl std::fmt::Display for ExampleErrorSource {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+///         match self {
+///             ExampleErrorSource::None => Ok(()),
+///             ExampleErrorSource::IOError(e) => write!("\n...Source Error...{}", e)
+///         }
+///     }
+/// }
+///
+/// impl std::fmt::Debug for ExampleErrorSource {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+///         match self {
+///             ExampleErrorSource::None => Ok(()),
+///             ExampleErrorSource::IOError(e) => write!("\n...Source Error...{}", e)
+///         }
+///     }
+/// }
+///
+/// ```
 #[proc_macro_attribute]
 pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
     // parse the input as an ItemStruct, it should panic if anything other than a struct is annotated with this macro
@@ -397,23 +596,9 @@ pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
     output_struct.fields = final_fields;
 
     //Build the output code
-
     //Parts that don't matter if there is any source enum
     let main_output = quote!(
                 #output_struct
-
-                impl #ident {
-                    #vis fn new() -> #ident {
-                        #ident {
-                            #new_fields
-                        }
-                    }
-
-                    #vis fn source(mut self, s: #ident_source) -> #ident {
-                        self.source = s;
-                        self
-                    }
-                }
 
                 impl ErrorContext for #ident {
                     fn make_inner(mut self) -> #ident {
@@ -446,6 +631,20 @@ pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
         true => {
             let mut out = quote!(
                 #main_output
+
+                impl #ident {
+                    #vis fn new() -> #ident {
+                        #ident {
+                            #new_fields
+                        }
+                    }
+
+                    #vis fn source(mut self, s: #ident_source) -> #ident {
+                        self.source = s;
+                        self
+                    }
+                }
+
                 #vis enum #ident_source {
                     #enum_variants
                 }
@@ -469,7 +668,20 @@ pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
             out.append_all(source_from_impl_items);
             out
         }
-        false => main_output,
+        false => {
+            parse_quote!(
+                #main_output
+
+                impl #ident {
+                    #vis fn new() -> #ident {
+                        #ident {
+                            #new_fields
+                        }
+                    }
+                }
+
+            )
+        }
     };
     final_output.into()
 }
