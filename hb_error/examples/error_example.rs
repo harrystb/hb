@@ -230,8 +230,10 @@ fn basic5_exampleerror() -> Result<(), ExampleError> {
 //                None => Ok(()),
 //        }
 //    }
-#[hberror("{self.msg}{self.inner_msgs.join(\"\n...due to...\")}")]
+#[hberror("{self.val}{self.msg}{self.inner_msgs.join(\"\n...due to...\")}")]
 struct AnotherExampleError {
+    #[Default(10)]
+    val: i32,
     #[Source]
     IOError: std::io::Error,
 }
