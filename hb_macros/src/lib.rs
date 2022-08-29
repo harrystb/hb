@@ -339,6 +339,9 @@ pub fn convert_error(_args: TokenStream, input: TokenStream) -> TokenStream {
 /// (eg ExampleErrorSource). This enum will have variants for each field marked with a source
 /// attribute as well as a None value. The variants for the sources are created using the field
 /// identity as the enum variant identity and contains the error type provided.
+///
+/// This means that the context or convert_error macros can be used on this error type without any
+/// additional work.
 /// ```
 /// #[hberror]
 /// struct ExampleError {
