@@ -69,6 +69,7 @@ impl Fold for ContextMsg {
 /// Converts Errors returned by the function into the correct type for the
 /// function as well adding a context message provided.
 /// This macro will change the following function...
+/// ```
 /// #[context("context message")]
 /// fn basic_exampleerror() -> Result<(), ExampleError> {
 ///     if io_error()? {
@@ -76,8 +77,9 @@ impl Fold for ContextMsg {
 ///     }
 ///     example_error()
 /// }
-///
+/// ```
 /// into...
+/// ```
 /// fn basic_exampleerror() -> Result<(), ExampleError> {
 ///     #[allow(unreachable_code)]
 ///     let ret: Result<(), ExampleError> = {
@@ -90,6 +92,7 @@ impl Fold for ContextMsg {
 ///     #[allow(unreachable_code)]
 ///     ret.map_err(|er| e.make_inner().msg("context message")
 /// }
+/// ```
 #[proc_macro_attribute]
 pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
     // convert the input TokenStream into a ItemFn syntax object
@@ -176,6 +179,7 @@ impl Fold for Converter {
 /// Converts Errors returned by the function into the correct type for the
 /// function as well adding a context message provided.
 /// This macro will change the following function...
+/// ```
 /// #[convert_error]
 /// fn basic_exampleerror() -> Result<(), ExampleError> {
 ///     if io_error()? {
@@ -183,8 +187,10 @@ impl Fold for Converter {
 ///     }
 ///     example_error()
 /// }
+/// ```
 ///
 /// into...
+/// ```
 /// fn basic_exampleerror() -> Result<(), ExampleError> {
 ///     #[allow(unreachable_code)]
 ///     let ret: Result<(), ExampleError> = {
@@ -197,6 +203,7 @@ impl Fold for Converter {
 ///     #[allow(unreachable_code)]
 ///     ret
 /// }
+/// ```
 #[proc_macro_attribute]
 pub fn convert_error(_args: TokenStream, input: TokenStream) -> TokenStream {
     // convert the input TokenStream into a ItemFn syntax object
@@ -633,18 +640,27 @@ pub fn hberror(args: TokenStream, input: TokenStream) -> TokenStream {
                 #main_output
 
                 impl #ident {
+                    /// Create a new error with empty values.
                     #vis fn new() -> #ident {
                         #ident {
                             #new_fields
                         }
                     }
 
+                    /// Set the source value of the error type with special enum. This function is
+                    /// usually used by the From implementation between the source error type and
+                    /// the final error type, where the source error is stored in the applicable
+                    /// variant of the enum in the source field of the error.
                     #vis fn source(mut self, s: #ident_source) -> #ident {
                         self.source = s;
                         self
                     }
                 }
 
+                /// This enum represents all of the errors that can be a source for this Error.
+                /// The trait From has been implemented between all of these Error types and the
+                /// main error type where the source field is set to the applicable variant of this
+                /// enum.
                 #vis enum #ident_source {
                     #enum_variants
                 }

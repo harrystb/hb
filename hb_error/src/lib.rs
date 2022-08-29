@@ -16,3 +16,12 @@ mod convert;
 pub use convert::*;
 mod context;
 pub use context::*;
+
+#[cfg(feature = "dont_use")]
+#[hberror("{self.code}: {self.msg}{self.inner_msgs.join(\"\n...because...\")}")]
+pub struct ExampleError {
+    #[Default(0)]
+    code: i32,
+    #[Source]
+    IOError: std::io::Error,
+}
