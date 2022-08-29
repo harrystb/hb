@@ -13,4 +13,4 @@ repository = "https://github.com/harrystb/hb"
 dont_use = []
 
 [dependencies]
-hb_macros = {path = "../hb_macros"}
+hb_macros = "0.1.1"

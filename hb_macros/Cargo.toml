@@ -1,6 +1,6 @@
 [package]
 name = "hb_macros"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Useful macros for creating and handling errors. See hb_error crate."
 license = "MIT"
