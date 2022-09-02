@@ -10,7 +10,7 @@ repository = "https://github.com/harrystb/hb"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-dont_use = []
+example_only = []
 
 [dependencies]
 hb_macros = "0.1.1"

@@ -17,11 +17,12 @@ pub use convert::*;
 mod context;
 pub use context::*;
 
-#[cfg(feature = "dont_use")]
-#[hberror("{self.code}: {self.msg}{self.inner_msgs.join(\"\n...because...\")}")]
-pub struct ExampleError {
-    #[Default(0)]
-    code: i32,
-    #[Source]
-    IOError: std::io::Error,
-}
+// TODO when documenting features comes to stable rust then add appropriate flags so the
+// example docs are displayed.
+//#[hberror("{self.code}: {self.msg}{self.inner_msgs.join(\"\n...because...\")}")]
+//pub struct exampleerror {
+//#[default(0)]
+//code: i32,
+//#[source]
+//ioerror: std::io::error,
+//}
