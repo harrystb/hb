@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "hb_macros"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "hb_error",
  "hb_parse",

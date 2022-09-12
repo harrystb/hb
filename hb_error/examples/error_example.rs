@@ -159,6 +159,13 @@ fn basic5_exampleerror() -> Result<(), ExampleError> {
     return io_error();
 }
 
+// Example #6
+// The context macro also allows parameters to be in the message using {}
+#[context("add parameters '{p}' - basic example")]
+fn basic6_exampleerror(p: &str) -> Result<(), ExampleError> {
+    return io_error();
+}
+
 // The macro hberror will generate the boilerplate of Errors that are used in this style.
 // The #[Source] attribute tells the hberror macro to implement a source struct (called
 // AnotherExampleErrorSource in the example below) which also means that the From<> traits will be
@@ -268,6 +275,10 @@ fn main() {
     println!(
         "Basic Example 5: Adding converting and adding context with an io:Error\n{}\n",
         basic5_exampleerror().err().unwrap()
+    );
+    println!(
+        "Basic Example 6: Adding converting and adding context with an io:Error\n{}\n",
+        basic6_exampleerror("val").err().unwrap()
     );
 
     println!(

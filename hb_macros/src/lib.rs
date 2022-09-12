@@ -46,9 +46,47 @@ impl Fold for ContextMsg {
                     Some(ex) => {
                         let m = &self.m;
                         let rettype = &self.rettype;
-                        rexpr.expr = Some(
-                            parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m))),
-                        );
+                        if m.value().contains('{') {
+                            let mut msg_args = syn::punctuated::Punctuated::<Expr, Comma>::new();
+                            let str = m.value();
+                            let mut brace_contents: Vec<String> = vec![];
+                            let mut in_brace = false;
+                            let mut buf = String::new();
+                            let mut out_str = String::new();
+                            for c in str.chars() {
+                                if c == '{' {
+                                    in_brace = true;
+                                    out_str.push(c);
+                                } else if c == '}' {
+                                    if buf.len() > 0 {
+                                        brace_contents.push(buf);
+                                        buf = String::new();
+                                    }
+                                    in_brace = false;
+                                    out_str.push(c);
+                                } else if in_brace {
+                                    buf.push(c);
+                                } else {
+                                    out_str.push(c);
+                                }
+                            }
+                            for content in brace_contents {
+                                msg_args.push(
+                                    syn::parse_str::<Expr>(&content).expect(
+                                        format!("cannot convert {} into an expression.", content)
+                                            .as_str(),
+                                    ),
+                                );
+                            }
+                            msg_args.insert(0, parse_quote!(#out_str));
+                            rexpr.expr = Some(
+                                parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(format!(#msg_args)))),
+                            );
+                        } else {
+                            rexpr.expr = Some(
+                                parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m))),
+                            );
+                        }
                     }
                     None => (),
                 }
@@ -103,6 +141,53 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
         // Read the args provided as a LitStr ie contents of the () after context in the attibute
         // Then create a ContextMsg object
         message = ContextMsg::new(parse_macro_input!(args as LitStr), r.clone());
+    } else {
+        // If the return type is the default return type () then skip processing
+        return TokenStream::from(quote! {#input});
+    }
+    // Handle Return and ? by folding the ItemFn syntax tree with the ContextMsg object
+    let mut output = message.fold_item_fn(input);
+    // Wrap the context of the function to grab the fall through Result then add the context
+    // onto the any errors with map_err
+    let block = output.block.clone();
+    let msg = message.m.clone();
+    let rettype = message.rettype.clone();
+    output.block = parse_quote! {
+        {
+            #[allow(unreachable_code)]
+            let ret: #rettype = {
+                #[warn(unreachable_code)]
+                #block
+            };
+            #[allow(unreachable_code)]
+            ret.map_err(|er| er.make_inner().msg(#msg))
+        }
+    };
+    // Convert the SyntaxTree back into a TokenTree
+    TokenStream::from(quote! {#output})
+}
+
+#[proc_macro_attribute]
+pub fn context_doc(args: TokenStream, input: TokenStream) -> TokenStream {
+    // convert the input TokenStream into a ItemFn syntax object
+    let input = parse_macro_input!(input as ItemFn);
+    let mut message;
+    let doc_comments: Vec<Attribute> = input
+        .attrs
+        .iter()
+        .filter(|a| a.path.is_ident("doc"))
+        .map(|a| a.clone())
+        .collect();
+    if doc_comments.len() == 0 || doc_comments.len() > 1 {
+        panic!("context_doc only works with single line doc comments.")
+    }
+    //TODO: Look at how to parse doc comment
+    let tokens = doc_comments.first().unwrap().tokens.clone();
+    // Extract the return type from the function signature
+    if let ReturnType::Type(_, r) = &input.sig.output {
+        // Read the args provided as a LitStr ie contents of the () after context in the attibute
+        // Then create a ContextMsg object
+        message = ContextMsg::new(parse_macro_input!(tokens as LitStr), r.clone());
     } else {
         // If the return type is the default return type () then skip processing
         return TokenStream::from(quote! {#input});
