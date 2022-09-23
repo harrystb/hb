@@ -166,6 +166,14 @@ fn basic6_exampleerror(p: &str) -> Result<(), ExampleError> {
     return io_error();
 }
 
+// Example #7
+// The context_doc macro to take the context string from the doccomment
+#[context_doc]
+/// add parameters '{p}' - basic example
+fn basic7_exampleerror(p: &str) -> Result<(), ExampleError> {
+    return io_error();
+}
+
 // The macro hberror will generate the boilerplate of Errors that are used in this style.
 // The #[Source] attribute tells the hberror macro to implement a source struct (called
 // AnotherExampleErrorSource in the example below) which also means that the From<> traits will be
@@ -277,8 +285,12 @@ fn main() {
         basic5_exampleerror().err().unwrap()
     );
     println!(
-        "Basic Example 6: Adding converting and adding context with an io:Error\n{}\n",
+        "Basic Example 6: adding a specific context message with a parameter\n{}\n",
         basic6_exampleerror("val").err().unwrap()
+    );
+    println!(
+        "Basic Example 7: adding a specific context message from a doc comment\n{}\n",
+        basic7_exampleerror("val").err().unwrap()
     );
 
     println!(

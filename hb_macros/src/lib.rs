@@ -183,11 +183,15 @@ pub fn context_doc(args: TokenStream, input: TokenStream) -> TokenStream {
     }
     //TODO: Look at how to parse doc comment
     let tokens = doc_comments.first().unwrap().tokens.clone();
+    let mut msg = format!("{}", tokens);
+    msg = msg[3..msg.len() - 1].trim().to_owned();
+    msg = msg.replace("\\'", "'");
     // Extract the return type from the function signature
     if let ReturnType::Type(_, r) = &input.sig.output {
         // Read the args provided as a LitStr ie contents of the () after context in the attibute
         // Then create a ContextMsg object
-        message = ContextMsg::new(parse_macro_input!(tokens as LitStr), r.clone());
+        message = ContextMsg::new(LitStr::new(&msg, Span::mixed_site()), r.clone());
+        //message = ContextMsg::new(parse_macro_input!(tokens as LitStr), r.clone());
     } else {
         // If the return type is the default return type () then skip processing
         return TokenStream::from(quote! {#input});
