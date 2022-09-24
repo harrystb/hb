@@ -169,7 +169,7 @@ fn basic6_exampleerror(p: &str) -> Result<(), ExampleError> {
 // Example #7
 // The context_doc macro to take the context string from the doccomment
 #[context_doc]
-/// add parameters '{p}' - basic example
+/// add parameters [p] - basic example
 fn basic7_exampleerror(p: &str) -> Result<(), ExampleError> {
     return io_error();
 }

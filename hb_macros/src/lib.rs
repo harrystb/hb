@@ -168,7 +168,7 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn context_doc(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn context_doc(_: TokenStream, input: TokenStream) -> TokenStream {
     // convert the input TokenStream into a ItemFn syntax object
     let input = parse_macro_input!(input as ItemFn);
     let mut message;
@@ -181,11 +181,12 @@ pub fn context_doc(args: TokenStream, input: TokenStream) -> TokenStream {
     if doc_comments.len() == 0 || doc_comments.len() > 1 {
         panic!("context_doc only works with single line doc comments.")
     }
-    //TODO: Look at how to parse doc comment
     let tokens = doc_comments.first().unwrap().tokens.clone();
     let mut msg = format!("{}", tokens);
     msg = msg[3..msg.len() - 1].trim().to_owned();
     msg = msg.replace("\\'", "'");
+    msg = msg.replace("[", "'{");
+    msg = msg.replace("]", "}'");
     // Extract the return type from the function signature
     if let ReturnType::Type(_, r) = &input.sig.output {
         // Read the args provided as a LitStr ie contents of the () after context in the attibute
