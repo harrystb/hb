@@ -1,14 +1,30 @@
 use hb_error::*;
 
+pub type ParseResult<T> = Result<T, ParseError>;
+pub type SourceResult<T> = Result<T, SourceError>;
+
 #[hberror]
 pub struct SourceError {
     #[Source]
     IOError: std::io::Error,
 }
 
-pub type ParseResult<T> = Result<T, ParseError>;
+#[hberror("no more chars available in source.")]
+pub struct SourceEmpty {}
+#[hberror]
+pub struct UnexpectedChar {}
 
-pub enum ParseInnerError {
+#[hberror]
+pub struct ParseError {
+    #[Source]
+    SourceError: SourceError,
+    #[Source]
+    SourceEmpty: SourceEmpty,
+    #[Source]
+    UnexpectedChar: UnexpectedChar,
+}
+
+/*pub enum ParseInnerError {
     Parse(Box<ParseError>),
     IO(std::io::Error),
 }
@@ -150,4 +166,4 @@ impl std::fmt::Debug for ParseError {
             None => write!(f, "{}{}", self.msg, context_str),
         }
     }
-}
+}*/

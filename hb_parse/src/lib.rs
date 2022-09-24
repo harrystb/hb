@@ -46,8 +46,8 @@
 //! reads the next char and returns true if it is a 'T'.
 //! ```
 //! use hb_parse::StrParser;
-//! use hb_parse::source::Source;
-//! use hb_parse::error::ParseResult;
+//! use hb_parse::Source;
+//! use hb_parse::ParseResult;
 //! trait NewParseFuncs {
 //!    fn new_func(&mut self) -> ParseResult<bool>;
 //! }
@@ -77,9 +77,9 @@ pub mod error;
 pub mod parser_funcs;
 pub mod source;
 pub use self::parser_funcs::CommonParserFunctions;
-use error::{ParseError, ParseResult};
+pub use error::{ParseError, ParseResult, SourceEmpty, SourceError, SourceResult};
 pub use hb_error::context;
-use source::Source;
+pub use source::Source;
 
 pub struct StrParser<'a> {
     s: &'a str,                                     // the raw source of chars
@@ -102,7 +102,7 @@ impl<'a> StrParser<'a> {
 }
 
 impl Source for StrParser<'_> {
-    fn next(&mut self) -> ParseResult<Option<(usize, char)>> {
+    fn next(&mut self) -> SourceResult<Option<(usize, char)>> {
         match self.iter.next() {
             Some(c) => {
                 let ret = Ok(Some((self.pointer, c)));
@@ -113,16 +113,16 @@ impl Source for StrParser<'_> {
         }
     }
 
-    fn peek(&mut self) -> ParseResult<Option<(usize, char)>> {
+    fn peek(&mut self) -> SourceResult<Option<(usize, char)>> {
         match self.iter.peek() {
             Some(c) => Ok(Some((self.pointer, *c))),
             None => Ok(None),
         }
     }
 
-    fn move_back(&mut self, n: usize) -> ParseResult<()> {
+    fn move_back(&mut self, n: usize) -> SourceResult<()> {
         if self.pointer < n {
-            return Err(ParseError::with_msg(format!(
+            return Err(SourceError::new().msg(format!(
                 "attempted to move pointer ({}) back {} places past the start of the data",
                 self.pointer, n
             )));
@@ -136,9 +136,9 @@ impl Source for StrParser<'_> {
         Ok(())
     }
 
-    fn move_forward(&mut self, n: usize) -> ParseResult<()> {
+    fn move_forward(&mut self, n: usize) -> SourceResult<()> {
         if self.pointer + n > self.sub_s.len() {
-            return Err(ParseError::with_msg(format!(
+            return Err(SourceError::new().msg(format!(
                 "attempted to move pointer ({}) forward {} places past the end of the data ({})",
                 self.pointer,
                 n,
@@ -152,9 +152,9 @@ impl Source for StrParser<'_> {
         }
         Ok(())
     }
-    fn consume(&mut self, n: usize) -> ParseResult<()> {
+    fn consume(&mut self, n: usize) -> SourceResult<()> {
         if n > self.sub_s.len() {
-            return Err(ParseError::with_msg(format!(
+            return Err(SourceError::new().msg(format!(
                 "attempted to consume {} chars when only {} remain",
                 n,
                 self.sub_s.len()
@@ -181,9 +181,9 @@ impl Source for StrParser<'_> {
         Ok(())
     }
 
-    fn extract(&mut self, n: usize) -> ParseResult<String> {
+    fn extract(&mut self, n: usize) -> SourceResult<String> {
         if n > self.sub_s.len() {
-            return Err(ParseError::with_msg(format!(
+            return Err(SourceError::new().msg(format!(
                 "attempted to extract {} chars when only {} remain",
                 n,
                 self.sub_s.len()
@@ -210,16 +210,16 @@ impl Source for StrParser<'_> {
         }
         Ok(ret)
     }
-    fn read_substr(&mut self, start: usize, n: usize) -> ParseResult<String> {
+    fn read_substr(&mut self, start: usize, n: usize) -> SourceResult<String> {
         if start > self.sub_s.len() {
-            return Err(ParseError::with_msg(format!(
+            return Err(SourceError::new().msg(format!(
                 "attempted to read substring from start position {} when only {} remain",
                 start,
                 self.sub_s.len()
             )));
         }
         if start + n > self.sub_s.len() {
-            return Err(ParseError::with_msg(format!(
+            return Err(SourceError::new().msg(format!(
                 "attempted to read a substring of {} chars when only {} remain",
                 n,
                 self.sub_s.len() - start
