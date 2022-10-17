@@ -1,3 +1,4 @@
+pub use hb_error::ErrorContext;
 use hb_error::*;
 
 pub type ParseResult<T> = Result<T, ParseError>;
@@ -9,7 +10,7 @@ pub struct SourceError {
     IOError: std::io::Error,
 }
 
-#[hberror("no more chars available in source.")]
+#[hberror("no more chars available in source")]
 pub struct SourceEmpty {}
 #[hberror]
 pub struct UnexpectedChar {}

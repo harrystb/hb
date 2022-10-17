@@ -78,7 +78,7 @@ pub mod parser_funcs;
 pub mod source;
 pub use self::parser_funcs::CommonParserFunctions;
 pub use error::{ParseError, ParseResult, SourceEmpty, SourceError, SourceResult};
-pub use hb_error::context;
+pub use hb_error::{context, ErrorContext};
 pub use source::Source;
 
 pub struct StrParser<'a> {
