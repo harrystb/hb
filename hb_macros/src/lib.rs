@@ -4,8 +4,9 @@ use quote::{quote, TokenStreamExt};
 use syn::fold::{self, Fold};
 use syn::token::Comma;
 use syn::{
-    parse_macro_input, parse_quote, Attribute, Expr, ExprMatch, FieldValue, Fields, Ident, Item,
-    ItemFn, ItemStruct, LitStr, ReturnType, Type, Variant,
+    parse_macro_input, parse_quote, Attribute, Expr, ExprMatch, FieldValue, Fields,
+    GenericArgument, Ident, Item, ItemFn, ItemStruct, LitStr, PathArguments, ReturnType, Type,
+    Variant,
 };
 
 /// Struct to handle the folding of the ItemFn.
@@ -95,8 +96,8 @@ impl Fold for ContextMsg {
             Expr::Try(mut texpr) => {
                 let ex = texpr.expr;
                 let m = &self.m;
-                let rettype = &self.rettype;
-                texpr.expr = parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m)));
+                let rettype = self.rettype.to_owned();
+                texpr.expr = parse_quote!(#ex.make_inner().msg(#m));
                 Expr::Try(texpr)
             }
             _ => fold::fold_expr(self, e),
@@ -152,6 +153,7 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
     let block = output.block.clone();
     let msg = message.m.clone();
     let rettype = message.rettype.clone();
+    // TODO: Clean up and use ErrType::from(...)
     output.block = parse_quote! {
         {
             #[allow(unreachable_code)]

@@ -29,7 +29,7 @@ pub trait CommonParserFunctions {
     /// Parses the string until the other end of the brackets is found.
     fn parse_brackets(&mut self) -> ParseResult<String>;
     /// Parses a number (eg i32, i64, u32, u64, f32, f64)
-    fn parse_num<N: ParsableNums>(&mut self) -> ParseResult<N>;
+    fn parse_num<N: ParsableNums + std::str::FromStr>(&mut self) -> ParseResult<N>;
     /// Parses a symbol which is defined as non-alphanumeric and non-whitespace.
     fn parse_symbol(&mut self) -> ParseResult<char>;
     fn read_symbol(&mut self) -> ParseResult<char>;
@@ -38,7 +38,10 @@ pub trait CommonParserFunctions {
     fn match_char(&mut self, val: char) -> ParseResult<bool>;
     /// Checks the upcoming chars if they match the int value provided.
     /// If it matches then the parser is moved forward.
-    fn match_num<N: ParsableNums + Display>(&mut self, val: N) -> ParseResult<bool>;
+    fn match_num<N: ParsableNums + Display + std::str::FromStr>(
+        &mut self,
+        val: N,
+    ) -> ParseResult<bool>;
     /// Checks the upcoming chars if they match the str value provided.
     /// If it matches then the parser is moved forward.
     fn match_str(&mut self, val: &str) -> ParseResult<bool>;
@@ -60,9 +63,7 @@ impl<T: Source> CommonParserFunctions for T {
                 Ok(None) => {
                     if self.get_pointer_loc() == start_i {
                         self.reset_pointer_loc();
-                        return Err(ParseError::new()
-                            .msg("could not parse word as there are none left in the source")
-                            .err_type_source_empty());
+                        return Err(SourceEmpty::new());
                     }
                     let r = self.read_substr(start_i, self.get_pointer_loc() - start_i)?;
                     return Ok(r);
@@ -111,7 +112,7 @@ impl<T: Source> CommonParserFunctions for T {
                 } else if c == '"' {
                     expected_ending = '"';
                 } else {
-                    return Ok(self.parse_word())?;
+                    return self.parse_word();
                 }
             }
         }
@@ -200,7 +201,7 @@ impl<T: Source> CommonParserFunctions for T {
     }
 
     #[context("could not parse num")]
-    fn parse_num<N: ParsableNums>(&mut self) -> ParseResult<N> {
+    fn parse_num<N: ParsableNums + std::str::FromStr>(&mut self) -> ParseResult<N> {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::new().msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
@@ -345,7 +346,7 @@ impl<T: Source> CommonParserFunctions for T {
     fn read_symbol(&mut self) -> ParseResult<char> {
         self.skip_whitespace()?;
         match self.peek()? {
-            None => Err(SourceEmpty::new()),
+            None => Err(SourceEmpty::new().into()),
             Some((_, c)) => {
                 if !c.is_whitespace() && !c.is_ascii_alphanumeric() {
                     // remove the char from the source
@@ -367,7 +368,7 @@ impl<T: Source> CommonParserFunctions for T {
         }
         self.skip_whitespace()?;
         match self.peek()? {
-            None => Err(SourceEmpty::new()),
+            None => Err(SourceEmpty::new().into()),
             Some((i, c)) => {
                 if c == val {
                     // remove the char from the source
@@ -381,7 +382,10 @@ impl<T: Source> CommonParserFunctions for T {
     }
 
     #[context("could not match num {val}")]
-    fn match_num<N: ParsableNums + Display>(&mut self, val: N) -> ParseResult<bool> {
+    fn match_num<N: ParsableNums + Display + std::str::FromStr>(
+        &mut self,
+        val: N,
+    ) -> ParseResult<bool> {
         self.match_str(format!("{}", val).as_str())
     }
 

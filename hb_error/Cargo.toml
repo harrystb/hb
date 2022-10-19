@@ -13,5 +13,5 @@ repository = "https://github.com/harrystb/hb"
 example_only = []
 
 [dependencies]
-hb_macros = "0.1.2"
-# hb_macros = {path = "../hb_macros"}
+#hb_macros = "0.1.2"
+hb_macros = {path = "../hb_macros"}

@@ -186,7 +186,7 @@ checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 name = "hb_error"
 version = "0.1.1"
 dependencies = [
- "hb_macros 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hb_macros",
 ]
 
 [[package]]
@@ -204,17 +204,6 @@ version = "0.1.2"
 dependencies = [
  "hb_error",
  "hb_parse",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "hb_macros"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a11c9cb1c133cc030e770c88dd94b5832e0ebfb7d762a55474a4ff0d6fa49271"
-dependencies = [
  "proc-macro2",
  "quote",
  "syn",
