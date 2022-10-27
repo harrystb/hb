@@ -2,6 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{quote, TokenStreamExt};
 use syn::fold::{self, Fold};
+use syn::punctuated::Pair;
 use syn::token::Comma;
 use syn::{
     parse_macro_input, parse_quote, Attribute, Expr, ExprMatch, FieldValue, Fields,
@@ -80,9 +81,36 @@ impl Fold for ContextMsg {
                                 );
                             }
                             msg_args.insert(0, parse_quote!(#out_str));
-                            rexpr.expr = Some(
-                                parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(format!(#msg_args)))),
-                            );
+                            let has_ok = match &*ex {
+                                Expr::Call(call) => match &*call.func {
+                                    Expr::Path(p) => p.path.is_ident("Ok"),
+                                    _ => false,
+                                },
+                                _ => false,
+                            };
+                            let mut path = rettype.clone();
+                            let arg = match *path {
+                                Type::Path(ref mut tpath) => match tpath.path.segments.pop() {
+                                    Some(Pair::End(mut t)) => {
+                                        let temp = t.arguments;
+                                        t.arguments = PathArguments::None;
+                                        tpath.path.segments.push(t);
+                                        temp
+                                    }
+                                    _ => PathArguments::None,
+                                },
+                                _ => PathArguments::None,
+                            };
+                            // TODO: This is there error location - need to convert rettype ie...ParseResult<()> into ParseResult::<()>
+                            if has_ok {
+                                rexpr.expr = Some(
+                                    parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#path::#arg::#ex).map_err(|er| er.make_inner().msg(format!(#msg_args)))),
+                                );
+                            } else {
+                                rexpr.expr = Some(
+                                    parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(format!(#msg_args)))),
+                                );
+                            }
                         } else {
                             rexpr.expr = Some(
                                 parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m))),
