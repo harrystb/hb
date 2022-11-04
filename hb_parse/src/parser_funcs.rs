@@ -8,6 +8,22 @@ use std::ops::{Add, Mul, Rem, Sub};
 use std::str::FromStr;
 
 // Trait to mark number types that can be parsed
+trait ParsableInts {}
+macro_rules! trait_parse_int {
+    ($($t:ty), *) => {$(
+        impl ParsableInts for $t {}
+    )*}
+}
+trait_parse_int!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize);
+// Trait to mark number types that can be parsed
+trait ParsableFloats {}
+macro_rules! trait_parse_float {
+    ($($t:ty), *) => {$(
+        impl ParsableFloats for $t {}
+    )*}
+}
+trait_parse_float!(f32, f64);
+// Trait to mark number types that can be parsed
 trait ParsableNums {}
 macro_rules! trait_parse_num {
     ($($t:ty), *) => {$(
@@ -29,7 +45,9 @@ pub trait CommonParserFunctions {
     /// Parses the string until the other end of the brackets is found.
     fn parse_brackets(&mut self) -> ParseResult<String>;
     /// Parses a number (eg i32, i64, u32, u64, f32, f64)
-    fn parse_num<N: ParsableNums + std::str::FromStr>(&mut self) -> ParseResult<N>;
+    fn parse_num<N: ParsableNums + ParsableFloats + std::str::FromStr>(&mut self)
+        -> ParseResult<N>;
+    fn parse_num<N: ParsableNums + ParsableInts + std::str::FromStr>(&mut self) -> ParseResult<N>;
     /// Parses a symbol which is defined as non-alphanumeric and non-whitespace.
     fn parse_symbol(&mut self) -> ParseResult<char>;
     fn read_symbol(&mut self) -> ParseResult<char>;
@@ -201,14 +219,52 @@ impl<T: Source> CommonParserFunctions for T {
     }
 
     #[context("could not parse num")]
-    fn parse_num<N: ParsableNums + std::str::FromStr>(&mut self) -> ParseResult<N> {
+    fn parse_num<N: ParsableNums + ParsableInts + std::str::FromStr>(&mut self) -> ParseResult<N> {
         if self.get_pointer_loc() != 0 {
             return Err(ParseError::new().msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
         }
         self.skip_whitespace()?;
-        let is_float =
-            TypeId::of::<N>() == TypeId::of::<f64>() || TypeId::of::<N>() == TypeId::of::<f32>();
-
+        let start_i = self.get_pointer_loc();
+        // skip a +/-
+        match self.peek()? {
+            None => {
+                return Err(SourceEmpty::new());
+            }
+            Some((_, c)) => {
+                if c == '-' || c == '+' {
+                    self.next()?;
+                }
+            }
+        }
+        while let Some((_, c)) = self.peek()? {
+            if !c.is_ascii_digit() {
+                break;
+            } else {
+                self.next()?;
+            }
+        }
+        let substr = self
+            .read_substr(start_i, self.get_pointer_loc() - start_i)
+            .unwrap();
+        match substr.parse::<N>() {
+            Err(_) => {
+                self.reset_pointer_loc();
+                return Err(ParseError::new().msg(format!("'{}' is not a valid number", substr)));
+            }
+            Ok(n) => {
+                self.consume(self.get_pointer_loc())?;
+                Ok(n)
+            }
+        }
+    }
+    #[context("could not parse num")]
+    fn parse_num<N: ParsableNums + ParsableFloats + std::str::FromStr>(
+        &mut self,
+    ) -> ParseResult<N> {
+        if self.get_pointer_loc() != 0 {
+            return Err(ParseError::new().msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
+        }
+        self.skip_whitespace()?;
         // Need to allow any of the below for float type numbers.
         //Float  ::= Sign? ( 'inf' | 'infinity' | 'nan' | Number )
         //Number ::= ( Digit+ |
@@ -237,7 +293,7 @@ impl<T: Source> CommonParserFunctions for T {
                 return Err(SourceEmpty::new());
             }
             Some((_, c)) => {
-                if is_float && (c == 'i' || c == 'I' || c == 'n' || c == 'N') {
+                if c == 'i' || c == 'I' || c == 'n' || c == 'N' {
                     let mut word = self.read_word().map_err(|e| {
                         e.make_inner().msg(format!(
                             "could not finish the infinity or not a number word after {}",
@@ -276,11 +332,34 @@ impl<T: Source> CommonParserFunctions for T {
                 self.next()?;
             }
         }
-        if is_float {
-            // if '.' then skip more digits
+        // if '.' then skip more digits
+        if let Some((_, c)) = self.peek()? {
+            //already handled any non-digit cases above so can
+            if c == '.' {
+                self.next()?;
+            }
+        }
+        while let Some((_, c)) = self.peek()? {
+            //already handled any non-digit cases above so can
+            if !c.is_ascii_digit() {
+                break;
+            } else {
+                self.next()?;
+            }
+        }
+        // if skip 'e' and skip sign more digits.
+        let mut has_exp = false;
+        if let Some((_, c)) = self.peek()? {
+            //already handled any non-digit cases above so can
+            if c == 'e' || c == 'E' {
+                has_exp = true;
+                self.next()?;
+            }
+        }
+        if has_exp {
             if let Some((_, c)) = self.peek()? {
                 //already handled any non-digit cases above so can
-                if c == '.' {
+                if c == '+' || c == '-' {
                     self.next()?;
                 }
             }
@@ -290,31 +369,6 @@ impl<T: Source> CommonParserFunctions for T {
                     break;
                 } else {
                     self.next()?;
-                }
-            }
-            // if skip 'e' and skip sign more digits.
-            let mut has_exp = false;
-            if let Some((_, c)) = self.peek()? {
-                //already handled any non-digit cases above so can
-                if c == 'e' || c == 'E' {
-                    has_exp = true;
-                    self.next()?;
-                }
-            }
-            if has_exp {
-                if let Some((_, c)) = self.peek()? {
-                    //already handled any non-digit cases above so can
-                    if c == '+' || c == '-' {
-                        self.next()?;
-                    }
-                }
-                while let Some((_, c)) = self.peek()? {
-                    //already handled any non-digit cases above so can
-                    if !c.is_ascii_digit() {
-                        break;
-                    } else {
-                        self.next()?;
-                    }
                 }
             }
         }

@@ -15,11 +15,16 @@ use syn::{
 struct ContextMsg {
     m: LitStr,
     rettype: Box<Type>,
+    has_ok: bool,
 }
 
 impl ContextMsg {
     fn new(m: LitStr, rettype: Box<Type>) -> Self {
-        ContextMsg { m, rettype }
+        ContextMsg {
+            m,
+            rettype,
+            has_ok: false,
+        }
     }
 }
 
@@ -81,36 +86,9 @@ impl Fold for ContextMsg {
                                 );
                             }
                             msg_args.insert(0, parse_quote!(#out_str));
-                            let has_ok = match &*ex {
-                                Expr::Call(call) => match &*call.func {
-                                    Expr::Path(p) => p.path.is_ident("Ok"),
-                                    _ => false,
-                                },
-                                _ => false,
-                            };
-                            let mut path = rettype.clone();
-                            let arg = match *path {
-                                Type::Path(ref mut tpath) => match tpath.path.segments.pop() {
-                                    Some(Pair::End(mut t)) => {
-                                        let temp = t.arguments;
-                                        t.arguments = PathArguments::None;
-                                        tpath.path.segments.push(t);
-                                        temp
-                                    }
-                                    _ => PathArguments::None,
-                                },
-                                _ => PathArguments::None,
-                            };
-                            // TODO: This is there error location - need to convert rettype ie...ParseResult<()> into ParseResult::<()>
-                            if has_ok {
-                                rexpr.expr = Some(
-                                    parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#path::#arg::#ex).map_err(|er| er.make_inner().msg(format!(#msg_args)))),
-                                );
-                            } else {
-                                rexpr.expr = Some(
-                                    parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(format!(#msg_args)))),
-                                );
-                            }
+                            rexpr.expr = Some(
+                                parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(format!(#msg_args)))),
+                            );
                         } else {
                             rexpr.expr = Some(
                                 parse_quote!(hb_error::ConvertInto::<#rettype>::convert(#ex).map_err(|er| er.make_inner().msg(#m))),
@@ -128,6 +106,17 @@ impl Fold for ContextMsg {
                 texpr.expr = parse_quote!(#ex.make_inner().msg(#m));
                 Expr::Try(texpr)
             }
+            Expr::Path(mut exprpath) => match exprpath.path.is_ident("Ok") {
+                true => {
+                    exprpath
+                        .path
+                        .segments
+                        .insert(0, parse_quote!(HbErrorContextType));
+                    self.has_ok = true;
+                    Expr::Path(exprpath)
+                }
+                false => Expr::Path(exprpath),
+            },
             _ => fold::fold_expr(self, e),
         }
     }
@@ -166,6 +155,7 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemFn);
     let mut message;
     // Extract the return type from the function signature
+    let gen = input.sig.generics.clone();
     if let ReturnType::Type(_, r) = &input.sig.output {
         // Read the args provided as a LitStr ie contents of the () after context in the attibute
         // Then create a ContextMsg object
@@ -178,9 +168,14 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut output = message.fold_item_fn(input);
     // Wrap the context of the function to grab the fall through Result then add the context
     // onto the any errors with map_err
-    let block = output.block.clone();
-    let msg = message.m.clone();
     let rettype = message.rettype.clone();
+    let mut block = output.block.clone();
+    if message.has_ok {
+        block
+            .stmts
+            .insert(0, parse_quote! { type HbErrorContextType #gen = #rettype; });
+    }
+    let msg = message.m.clone();
     // TODO: Clean up and use ErrType::from(...)
     output.block = parse_quote! {
         {
@@ -201,6 +196,7 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
 pub fn context_doc(_: TokenStream, input: TokenStream) -> TokenStream {
     // convert the input TokenStream into a ItemFn syntax object
     let input = parse_macro_input!(input as ItemFn);
+    let gen = input.sig.generics.clone();
     let mut message;
     let doc_comments: Vec<Attribute> = input
         .attrs
@@ -231,9 +227,14 @@ pub fn context_doc(_: TokenStream, input: TokenStream) -> TokenStream {
     let mut output = message.fold_item_fn(input);
     // Wrap the context of the function to grab the fall through Result then add the context
     // onto the any errors with map_err
-    let block = output.block.clone();
-    let msg = message.m.clone();
     let rettype = message.rettype.clone();
+    let mut block = output.block.clone();
+    if message.has_ok {
+        block
+            .stmts
+            .insert(0, parse_quote! { type HbErrorContextType #gen = #rettype; });
+    }
+    let msg = message.m.clone();
     output.block = parse_quote! {
         {
             #[allow(unreachable_code)]

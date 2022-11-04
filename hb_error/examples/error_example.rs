@@ -263,6 +263,11 @@ fn more_exampleerror2() -> Result<(), AnotherExampleError> {
     return more_exampleerror();
 }
 
+#[context("with some generic parameter")]
+fn more_exampleerror3<T: From<std::io::Error> + hb_error::ErrorContext>() -> Result<(), T> {
+    return io_error();
+}
+
 fn main() {
     println!(
         "Basic Example 1: Adding context to a fall through error\n{}\n",
@@ -300,5 +305,9 @@ fn main() {
     println!(
         "Another Example 2: Adding a layer of context on top\n{}\n",
         more_exampleerror2().err().unwrap()
+    );
+    println!(
+        "Another Example 3: working with generics\n{}\n",
+        more_exampleerror3::<AnotherExampleError>().err().unwrap()
     );
 }
