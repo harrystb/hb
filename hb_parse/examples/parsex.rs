@@ -1,5 +1,5 @@
-use hb_parse::error::ParseErrorType;
-use hb_parse::{CommonParserFunctions, StrParser};
+use hb_parse::error::ParseError;
+use hb_parse::{CommonParserFunctions, SourceEmpty, StrParser};
 use std::io;
 
 fn main() {
@@ -43,63 +43,27 @@ A empty command will allow a new string to be entered."#
                     );
                 }
                 "word" => match parser.parse_word() {
-                    Err(e) => {
-                        if e.err_type == ParseErrorType::SourceEmpty {
-                            println!("string is empty.");
-                            break;
-                        }
-                        println!("{}", e);
-                    }
+                    Err(e) => println!("{}", e),
                     Ok(w) => println!("Word: {}", w),
                 },
                 "symbol" => match parser.parse_symbol() {
-                    Err(e) => {
-                        if e.err_type == ParseErrorType::SourceEmpty {
-                            println!("string is empty.");
-                            break;
-                        }
-                        println!("{}", e);
-                    }
+                    Err(e) => println!("{}", e),
                     Ok(w) => println!("Symbol: {}", w),
                 },
                 "string" => match parser.parse_string() {
-                    Err(e) => {
-                        if e.err_type == ParseErrorType::SourceEmpty {
-                            println!("string is empty.");
-                            break;
-                        }
-                        println!("{}", e);
-                    }
+                    Err(e) => println!("{}", e),
                     Ok(w) => println!("String: {}", w),
                 },
                 "int" => match parser.parse_num::<i64>() {
-                    Err(e) => {
-                        if e.err_type == ParseErrorType::SourceEmpty {
-                            println!("string is empty.");
-                            break;
-                        }
-                        println!("{}", e);
-                    }
+                    Err(e) => println!("{}", e),
                     Ok(w) => println!("Integer: {}", w),
                 },
                 "uint" => match parser.parse_num::<u64>() {
-                    Err(e) => {
-                        if e.err_type == ParseErrorType::SourceEmpty {
-                            println!("string is empty.");
-                            break;
-                        }
-                        println!("{}", e);
-                    }
+                    Err(e) => println!("{}", e),
                     Ok(w) => println!("Unsigned Integer: {}", w),
                 },
-                "float" => match parser.parse_num::<f64>() {
-                    Err(e) => {
-                        if e.err_type == ParseErrorType::SourceEmpty {
-                            println!("string is empty.");
-                            break;
-                        }
-                        println!("{}", e);
-                    }
+                "float" => match parser.parse_float::<f64>() {
+                    Err(e) => println!("{}", e),
                     Ok(w) => println!("Float: {}", w),
                 },
                 s => println!("invalid command '{}'", s),

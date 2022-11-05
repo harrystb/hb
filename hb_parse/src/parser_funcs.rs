@@ -8,7 +8,7 @@ use std::ops::{Add, Mul, Rem, Sub};
 use std::str::FromStr;
 
 // Trait to mark number types that can be parsed
-trait ParsableInts {}
+pub trait ParsableInts {}
 macro_rules! trait_parse_int {
     ($($t:ty), *) => {$(
         impl ParsableInts for $t {}
@@ -16,7 +16,7 @@ macro_rules! trait_parse_int {
 }
 trait_parse_int!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize);
 // Trait to mark number types that can be parsed
-trait ParsableFloats {}
+pub trait ParsableFloats {}
 macro_rules! trait_parse_float {
     ($($t:ty), *) => {$(
         impl ParsableFloats for $t {}
@@ -24,7 +24,7 @@ macro_rules! trait_parse_float {
 }
 trait_parse_float!(f32, f64);
 // Trait to mark number types that can be parsed
-trait ParsableNums {}
+pub trait ParsableNums {}
 macro_rules! trait_parse_num {
     ($($t:ty), *) => {$(
         impl ParsableNums for $t {}
@@ -45,8 +45,9 @@ pub trait CommonParserFunctions {
     /// Parses the string until the other end of the brackets is found.
     fn parse_brackets(&mut self) -> ParseResult<String>;
     /// Parses a number (eg i32, i64, u32, u64, f32, f64)
-    fn parse_num<N: ParsableNums + ParsableFloats + std::str::FromStr>(&mut self)
-        -> ParseResult<N>;
+    fn parse_float<N: ParsableNums + ParsableFloats + std::str::FromStr>(
+        &mut self,
+    ) -> ParseResult<N>;
     fn parse_num<N: ParsableNums + ParsableInts + std::str::FromStr>(&mut self) -> ParseResult<N>;
     /// Parses a symbol which is defined as non-alphanumeric and non-whitespace.
     fn parse_symbol(&mut self) -> ParseResult<char>;
@@ -258,7 +259,7 @@ impl<T: Source> CommonParserFunctions for T {
         }
     }
     #[context("could not parse num")]
-    fn parse_num<N: ParsableNums + ParsableFloats + std::str::FromStr>(
+    fn parse_float<N: ParsableNums + ParsableFloats + std::str::FromStr>(
         &mut self,
     ) -> ParseResult<N> {
         if self.get_pointer_loc() != 0 {
@@ -543,11 +544,11 @@ mod tests {
         );
         assert_eq!(source.parse_num::<u32>().unwrap(), 1);
         assert_eq!(source.parse_num::<i32>().unwrap(), -2);
-        assert_eq!(source.parse_num::<f32>().unwrap(), 12.3);
-        assert_eq!(source.parse_num::<f32>().unwrap(), f32::INFINITY);
-        assert_eq!(source.parse_num::<f32>().unwrap(), f32::NEG_INFINITY);
-        assert_eq!(source.parse_num::<f32>().unwrap(), f32::INFINITY);
-        assert!(source.parse_num::<f32>().unwrap().is_nan());
+        assert_eq!(source.parse_float::<f32>().unwrap(), 12.3);
+        assert_eq!(source.parse_float::<f32>().unwrap(), f32::INFINITY);
+        assert_eq!(source.parse_float::<f32>().unwrap(), f32::NEG_INFINITY);
+        assert_eq!(source.parse_float::<f32>().unwrap(), f32::INFINITY);
+        assert!(source.parse_float::<f32>().unwrap().is_nan());
         assert_eq!(
             source.parse_brackets().unwrap(),
             "Or something like that".to_owned()
