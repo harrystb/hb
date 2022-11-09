@@ -123,7 +123,37 @@ impl Fold for ContextMsg {
 }
 
 /// Converts Errors returned by the function into the correct type for the
-/// function as well adding a context message provided.
+/// function as well adding a context message provided. There are many different situations that
+/// need to be handled. The context message can also have a special format to use variables
+/// in the context message.
+/// # The context message format
+/// The context message is treated as string, but it also allows the use of curly braces to inject
+/// variables into the message. In the example below the msg parameter to the function is injected
+/// into the context message.
+/// ```
+/// #[context("could not find message {msg}")]
+/// fn find_msg(msg: String) -> Result<bool, FindError> {...}
+/// ```
+/// # Return expressions
+/// Return expressions are modified to convert the returned result into the type expected by the
+/// function using the hb_error::ConvertInto function. In addition, the error is also given the provided context message.
+/// ```
+///     return example_error();
+/// ```
+/// into...
+/// ```
+///     return hb_error::ConvertInto::<Result<(), ExampleError>>::convert(example_error()).map_err(|e| e.msg("some context message"));
+/// ```
+/// # Try expressions (? operator)
+/// TODO: Finish this docs
+/// # Fall through values
+///
+/// # Special Handling for Ok
+///
+///
+///
+///
+///
 /// This macro will change the following function...
 /// ```
 /// #[context("context message")]

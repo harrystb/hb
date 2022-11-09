@@ -33,37 +33,85 @@ macro_rules! trait_parse_num {
 trait_parse_num!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, f32, f64, usize, isize);
 
 pub trait CommonParserFunctions {
-    /// Reads a word from the source from the current cursor.
-    /// A word is a all alphanumberic characters leading up to a non-aplphanumeric character.
-    fn read_word(&mut self) -> ParseResult<String>;
-    /// Parses a word from the source.
-    /// A word is a all alphanumberic characters leading up to a non-aplphanumeric character.
+    // Check functions are the basic level which checks the upcoming chars and moves the pointer if
+    // it is there. They are used by the other functions.
+    /// Checks the upcoming chars for a word and moves the cursor if found.
+    /// A word is a all alphanumeric characters leading up to a non-alphanumeric character.
+    fn check_word(&mut self) -> ParseResult<bool>;
+    /// Checks the upcoming chars for a string and moves the cursor if found.
+    /// A string is either a word, or a set of chars enclosed by " or '.
+    fn check_string(&mut self) -> ParseResult<bool>;
+    /// Checks the upcoming chars for opening bracket, content and closing bracket and moves the cursor if found.
+    fn check_bracket_contents(&mut self) -> ParseResult<bool>;
+    /// Checks the upcoming chars for a float and moves the cursor if found.
+    fn check_float(&mut self) -> ParseResult<bool>;
+    /// Checks the upcoming chars for a integer number and moves the cursor if found.
+    fn check_num(&mut self) -> ParseResult<bool>;
+    /// Checks the upcoming chars for a symbol and moves the cursor if found.
+    /// A symbol is defined as non-alphanumeric and non-whitespace.
+    fn check_symbol(&mut self) -> ParseResult<bool>;
+
+    // Parse functions build on top of the check function but also return the item found.
+    // The cursor is moved and the internal buffer is not shifted.
+    /// Parses a word from the upcoming chars.
+    /// A word is a all alphanumeric characters leading up to a non-alphanumeric character.
     fn parse_word(&mut self) -> ParseResult<String>;
-    /// Parses a string from the source.
+    /// Parses a string from the upcoming chars..
     /// A string is either a word, or a set of chars enclosed by " or '.
     fn parse_string(&mut self) -> ParseResult<String>;
-    /// Parses the string until the other end of the brackets is found.
+    /// Parses the contents of some brackets from the upcoming chars.
     fn parse_brackets(&mut self) -> ParseResult<String>;
-    /// Parses a number (eg i32, i64, u32, u64, f32, f64)
+    /// Parses a float from the upcoming chars.
     fn parse_float<N: ParsableNums + ParsableFloats + std::str::FromStr>(
         &mut self,
     ) -> ParseResult<N>;
+    /// Parses a integer from the upcoming chars.
     fn parse_num<N: ParsableNums + ParsableInts + std::str::FromStr>(&mut self) -> ParseResult<N>;
-    /// Parses a symbol which is defined as non-alphanumeric and non-whitespace.
+    /// Parses a symbol from the upcoming chars.
+    /// A symbol is defined as non-alphanumeric and non-whitespace.
     fn parse_symbol(&mut self) -> ParseResult<char>;
+
+    // Read functions build on the parse functions but also shift the internal buffer.
+    /// Reads a word from the upcoming chars.
+    /// A word is a all alphanumeric characters leading up to a non-alphanumeric character.
+    fn read_word(&mut self) -> ParseResult<String>;
+    /// Reads a string from the upcoming chars.
+    /// A string is either a word, or a set of chars enclosed by " or '.
+    fn read_string(&mut self) -> ParseResult<String>;
+    /// Reads a the contents of some brackets from the upcoming chars.
+    fn read_bracket_contents(&mut self) -> ParseResult<String>;
+    /// Reads a float from the upcoming chars.
+    fn read_float<N: ParsableNums + ParsableFloats + std::str::FromStr>(
+        &mut self,
+    ) -> ParseResult<N>;
+    /// Reads a integer (of the type provided) from the upcoming chars.
+    fn read_num<N: ParsableNums + ParsableInts + std::str::FromStr>(&mut self) -> ParseResult<N>;
+    /// Reads a symbol from the upcoming chars.
+    /// A symbol is defined as non-alphanumeric and non-whitespace.
     fn read_symbol(&mut self) -> ParseResult<char>;
-    /// Checks if the next char matches the provided value.
-    /// If it matches then the parser is moved forward.
+
+    // Match functions use the parse function to extract some data and then compares it to the
+    // value provided.
+    /// Matches the upcoming chars against the provided char.
     fn match_char(&mut self, val: char) -> ParseResult<bool>;
-    /// Checks the upcoming chars if they match the int value provided.
-    /// If it matches then the parser is moved forward.
-    fn match_num<N: ParsableNums + Display + std::str::FromStr>(
+    /// Checks the upcoming chars if they match the str value provided.
+    fn match_str(&mut self, val: &str) -> ParseResult<bool>;
+    /// Matches the upcoming chars for bracketed contents and if that matches the str provided.
+    fn match_bracket_contents(&mut self, val: &str) -> ParseResult<bool>;
+    /// Matches the upcoming chars against the provided number.
+    fn match_num<N: ParsableInts + Display + std::str::FromStr>(
         &mut self,
         val: N,
     ) -> ParseResult<bool>;
-    /// Checks the upcoming chars if they match the str value provided.
-    /// If it matches then the parser is moved forward.
-    fn match_str(&mut self, val: &str) -> ParseResult<bool>;
+    /// Matches the upcoming chars against the provided float.
+    fn match_float<N: ParsableFloats + Display + std::str::FromStr>(
+        &mut self,
+        val: N,
+    ) -> ParseResult<bool>;
+    /// Matches the upcoming chars against the provided symbol character.
+    fn match_symbol(&mut self, val: char) -> ParseResult<bool>;
+
+    // Utility functions
     fn consume_whitespace(&mut self) -> ParseResult<()>;
     fn skip_whitespace(&mut self) -> ParseResult<()>;
 }
