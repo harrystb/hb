@@ -1,6 +1,6 @@
 [package]
 name = "hb_error"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Useful macros and traits for creating and handling errors."
 license = "MIT"
@@ -13,5 +13,5 @@ repository = "https://github.com/harrystb/hb"
 example_only = []
 
 [dependencies]
-#hb_macros = "0.1.2"
-hb_macros = {path = "../hb_macros"}
+hb_macros = "0.1.3"
+#hb_macros = {path = "../hb_macros"}

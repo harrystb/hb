@@ -1,5 +1,3 @@
-use std::error::Error;
-
 /// The ErrorContext trait should be implemented for the context macro to work.
 pub trait ErrorContext {
     fn make_inner(self) -> Self;

@@ -2,12 +2,10 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{quote, TokenStreamExt};
 use syn::fold::{self, Fold};
-use syn::punctuated::Pair;
 use syn::token::Comma;
 use syn::{
-    parse_macro_input, parse_quote, Attribute, Expr, ExprMatch, FieldValue, Fields,
-    GenericArgument, Ident, Item, ItemFn, ItemStruct, LitStr, PathArguments, ReturnType, Type,
-    Variant,
+    parse_macro_input, parse_quote, Attribute, Expr, ExprMatch, FieldValue, Fields, Ident, Item,
+    ItemFn, ItemStruct, LitStr, ReturnType, Type, Variant,
 };
 
 /// Struct to handle the folding of the ItemFn.
@@ -102,7 +100,6 @@ impl Fold for ContextMsg {
             Expr::Try(mut texpr) => {
                 let ex = texpr.expr;
                 let m = &self.m;
-                let rettype = self.rettype.to_owned();
                 texpr.expr = parse_quote!(#ex.make_inner().msg(#m));
                 Expr::Try(texpr)
             }
@@ -134,7 +131,7 @@ impl Fold for ContextMsg {
 /// #[context("could not find message {msg}")]
 /// fn find_msg(msg: String) -> Result<bool, FindError> {...}
 /// ```
-/// # Return expressions
+/// # Return expressions and Fall Through values`
 /// Return expressions are modified to convert the returned result into the type expected by the
 /// function using the hb_error::ConvertInto function. In addition, the error is also given the provided context message.
 /// ```
@@ -144,40 +141,48 @@ impl Fold for ContextMsg {
 /// ```
 ///     return hb_error::ConvertInto::<Result<(), ExampleError>>::convert(example_error()).map_err(|e| e.msg("some context message"));
 /// ```
-/// # Try expressions (? operator)
-/// TODO: Finish this docs
-/// # Fall through values
-///
-/// # Special Handling for Ok
-///
-///
-///
-///
-///
-/// This macro will change the following function...
+/// Similarly fall through values are handled similarly but with extra scaffolding around it so that
+/// the compiler knows what type is expected in the block of the function and can show appropriate
+/// error messages.
 /// ```
-/// #[context("context message")]
-/// fn basic_exampleerror() -> Result<(), ExampleError> {
-///     if io_error()? {
-///         return example_error().map_err(|e| e.msg("msgs are great"));
-///     }
-///     example_error()
+/// fn something() -> Result<(), ExampleError> {
+///     example_error
 /// }
 /// ```
 /// into...
 /// ```
-/// fn basic_exampleerror() -> Result<(), ExampleError> {
+/// fn something() -> Result<(), ExampleError> {
 ///     #[allow(unreachable_code)]
 ///     let ret: Result<(), ExampleError> = {
-///            #[warn(unreachable_code)]
-///         if hb_error::ConvertInto::Result<(), ExampleError>::convert(io_error()).map_err(|er| er.make_inner().msg("context message")? {
-///             return hb_error::ConvertInto::Result<(), ExampleError>::convert(example_error().map_err(|e| e.msg("msgs are great"))).map_err(|er| er.make_inner().msg("context message");
-///         }
-///         example_error()
+///         #[warn(unreachable_code)]
+///         example_error
 ///     };
 ///     #[allow(unreachable_code)]
-///     ret.map_err(|er| e.make_inner().msg("context message")
+///     ret.map_err(|er| er.make_inner().msg("Some context message."))
 /// }
+/// ```
+/// # Try expressions (? operator)
+/// Try expressions are modified to convert the returned result into the type expected by the
+/// function using the hb_error::ConvertInto function. In addition, the error is also given the provided context message.
+/// ```
+///     let a = example_error()?;
+/// ```
+/// into...
+/// ```
+///     let a = example_error().make_inner().msg("some context message")?;
+/// ```
+/// # Special Handling for Ok
+/// The Ok return type needs special handling because the compiler cannot infer the return type with
+/// the extra scaffolding that has been put around the main block of the function. To compensate for
+/// this the Ok value is given a full path qualifier. As the path syntax changes based on how it is
+/// used, a alias is defined at the begining of the function (HbErrorContextType).
+/// ```
+///     Ok(())
+/// ```
+/// into...
+/// ```
+///     type HbErrorContextType = Result<(), ExampleError>;
+///     HbErrorContextType::Ok(())
 /// ```
 #[proc_macro_attribute]
 pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -206,7 +211,6 @@ pub fn context(args: TokenStream, input: TokenStream) -> TokenStream {
             .insert(0, parse_quote! { type HbErrorContextType #gen = #rettype; });
     }
     let msg = message.m.clone();
-    // TODO: Clean up and use ErrType::from(...)
     output.block = parse_quote! {
         {
             #[allow(unreachable_code)]
