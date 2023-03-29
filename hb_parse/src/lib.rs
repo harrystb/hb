@@ -152,6 +152,7 @@ impl Source for StrParser<'_> {
         }
         Ok(())
     }
+
     fn consume(&mut self, n: usize) -> SourceResult<()> {
         if n > self.sub_s.len() {
             return Err(SourceError::new().msg(format!(
@@ -238,6 +239,11 @@ impl Source for StrParser<'_> {
     fn reset_pointer_loc(&mut self) {
         self.pointer = 0;
         self.iter = self.sub_s.chars().peekable();
+    }
+
+    fn set_pointer_loc(&mut self, i: usize) -> SourceResult<()> {
+        self.reset_pointer_loc();
+        self.move_forward(i)
     }
 
     fn get_context(&self) -> String {

@@ -16,6 +16,9 @@ pub struct SourceEmpty {}
 pub struct UnexpectedChar {}
 
 #[hberror]
+pub struct SourceInvalidState {}
+
+#[hberror]
 pub struct ParseError {
     #[Source]
     SourceError: SourceError,
@@ -23,6 +26,8 @@ pub struct ParseError {
     SourceEmpty: SourceEmpty,
     #[Source]
     UnexpectedChar: UnexpectedChar,
+    #[Source]
+    SourceInvalidState: SourceInvalidState,
 }
 
 /*pub enum ParseInnerError {

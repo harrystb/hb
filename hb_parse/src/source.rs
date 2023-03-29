@@ -25,6 +25,8 @@ pub trait Source {
     fn get_pointer_loc(&self) -> usize;
     /// Resets the pointer to the start of the window
     fn reset_pointer_loc(&mut self);
+    /// Set the pointer to a specific value
+    fn set_pointer_loc(&mut self, i: usize) -> SourceResult<()>;
     /// Gets up to 80 chars around the current pointer
     fn get_context(&self) -> String;
 }

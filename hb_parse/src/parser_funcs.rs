@@ -1,4 +1,4 @@
-use crate::error::{ParseError, ParseResult, UnexpectedChar};
+use crate::error::{ParseError, ParseResult, SourceInvalidState, UnexpectedChar};
 use crate::source::Source;
 use crate::SourceEmpty;
 use hb_error::{context, ErrorContext};
@@ -117,28 +117,29 @@ pub trait CommonParserFunctions {
 }
 
 impl<T: Source> CommonParserFunctions for T {
-    #[context("could not read word")]
-    fn read_word(&mut self) -> ParseResult<String> {
+    // WORD - Implementations for check, parse and read.
+    #[context("could not check word")]
+    fn check_word(&mut self) -> ParseResult<bool> {
         self.skip_whitespace()?;
         let start_i = self.get_pointer_loc();
+        let mut has_char = false;
         loop {
             match self.peek() {
                 Err(e) => {
-                    self.reset_pointer_loc();
+                    self.set_pointer_loc(start_i);
                     return Err(e);
                 }
                 Ok(None) => {
                     if self.get_pointer_loc() == start_i {
-                        self.reset_pointer_loc();
                         return Err(SourceEmpty::new());
                     }
-                    let r = self.read_substr(start_i, self.get_pointer_loc() - start_i)?;
-                    return Ok(r);
+                    return Ok(true);
                 }
                 Ok(Some((i, c))) => {
                     if !c.is_alphanumeric() {
-                        return self.read_substr(start_i, i - start_i);
+                        return Ok(has_char);
                     } else {
+                        has_char = true;
                         self.next()?;
                     }
                 }
@@ -148,12 +149,46 @@ impl<T: Source> CommonParserFunctions for T {
 
     #[context("could not parse word")]
     fn parse_word(&mut self) -> ParseResult<String> {
+        self.skip_whitespace()?;
+        let start_i = self.get_pointer_loc();
+        match self.check_word() {
+            Err(e) => {
+                self.set_pointer_loc(start_i);
+                return Err(e);
+            }
+            Ok(true) => {
+                return Ok(self.read_substr(start_i, self.get_pointer_loc())?);
+            }
+            Ok(false) => {
+                return Err(UnexpectedChar::new());
+            }
+        }
+    }
+
+    #[context("could not read word")]
+    fn read_word(&mut self) -> ParseResult<String> {
         if self.get_pointer_loc() != 0 {
-            return Err(ParseError::new().msg(format!("Parser has already been used, and has left a pointer at position {} (which should be 0).", self.get_pointer_loc())));
+            return Err(SourceInvalidState::new());
         }
         let word = self.read_word()?;
         self.consume(self.get_pointer_loc())?;
         Ok(word)
+    }
+
+    fn check_string(&mut self) -> ParseResult<bool> {
+        todo!()
+    }
+    fn check_num(&mut self) -> ParseResult<bool> {
+        todo!()
+    }
+    fn check_float(&mut self) -> ParseResult<bool> {
+        todo!()
+    }
+    fn check_bracket_contents(&mut self) -> ParseResult<bool> {
+        todo!()
+    }
+    fn check_symbol(&mut self) -> ParseResult<bool> {
+        todo!()
     }
 
     #[context("could not parse string")]
@@ -485,7 +520,7 @@ impl<T: Source> CommonParserFunctions for T {
     }
 
     #[context("could not match num {val}")]
-    fn match_num<N: ParsableNums + Display + std::str::FromStr>(
+    fn match_num<N: ParsableInts + Display + std::str::FromStr>(
         &mut self,
         val: N,
     ) -> ParseResult<bool> {
@@ -566,6 +601,34 @@ impl<T: Source> CommonParserFunctions for T {
                 }
             }
         }
+    }
+
+    fn read_string(&mut self) -> ParseResult<String> {
+        todo!()
+    }
+
+    fn read_bracket_contents(&mut self) -> ParseResult<String> {
+        todo!()
+    }
+
+    fn read_float<N: ParsableNums + ParsableFloats + FromStr>(&mut self) -> ParseResult<N> {
+        todo!()
+    }
+
+    fn read_num<N: ParsableNums + ParsableInts + FromStr>(&mut self) -> ParseResult<N> {
+        todo!()
+    }
+
+    fn match_bracket_contents(&mut self, val: &str) -> ParseResult<bool> {
+        todo!()
+    }
+
+    fn match_float<N: ParsableFloats + Display + FromStr>(&mut self, val: N) -> ParseResult<bool> {
+        todo!()
+    }
+
+    fn match_symbol(&mut self, val: char) -> ParseResult<bool> {
+        todo!()
     }
 }
 
